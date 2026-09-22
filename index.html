@@ -1,1 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Teacher Vanessa's Private Class Dashboard" />
+    <title>Teacher Vanessa's Private Class Dashboard</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body data-theme="soft">
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="profile-wrap">
+          <div class="profile-icon" aria-label="Profile">V</div>
+          <div class="profile-copy">
+            <h1 id="welcomeGreeting">Good Evening Vanessa</h1>
+            <p id="teacherSubtitle">Vanessa · Private Class Teacher</p>
+          </div>
+        </div>
 
+        <div class="header-meta">
+          <div class="meta-block time-block">
+            <span id="currentTime">--:--</span>
+          </div>
+          <div class="meta-block date-block">
+            <span id="currentDate">--</span>
+          </div>
+        </div>
+      </header>
+
+      <nav class="main-nav" aria-label="Main navigation">
+        <button class="nav-item active" type="button" data-view="dashboard">Dashboard</button>
+        <button class="nav-item" type="button" data-view="students">Students</button>
+        <button class="nav-item" type="button" data-view="schedule">Weekly Schedule</button>
+        <button class="nav-item" type="button" data-view="payments">Payments</button>
+        <button class="nav-item" type="button" data-view="records">Class Records</button>
+        <button class="nav-item" type="button" data-view="reports">Reports &amp; Analysis</button>
+        <button class="nav-item" type="button" data-view="settings">Settings</button>
+      </nav>
+
+      <main class="page-content">
+        <section id="dashboard-view" class="view active" aria-label="Dashboard">
+          <div class="page-header compact">
+            <div>
+              <p class="eyebrow">Private Class Teacher</p>
+              <h2 id="dashboardTitle">Vanessa's Dashboard</h2>
+            </div>
+          </div>
+
+          <div class="quote-card card">
+            <div class="label-row">
+              <span class="card-label">QUOTE</span>
+            </div>
+            <textarea id="dashboardQuoteInput" rows="3" aria-label="Dashboard quote"></textarea>
+            <div class="quote-actions">
+              <button type="button" class="primary-button" id="saveQuoteBtn">Add quote</button>
+            </div>
+          </div>
+
+          <div class="stats-grid four-col" id="dashboardSummaryCards">
+            <div class="stat-card card">
+              <span class="stat-title">Students</span>
+              <strong class="stat-value" id="studentStatCount">0</strong>
+            </div>
+            <div class="stat-card card">
+              <span class="stat-title">Active</span>
+              <strong class="stat-value" id="activeStatCount">0</strong>
+            </div>
+            <div class="stat-card card">
+              <span class="stat-title">Pending</span>
+              <strong class="stat-value" id="pendingStatCount">0</strong>
+            </div>
+            <div class="stat-card card">
+              <span class="stat-title">Paid</span>
+              <strong class="stat-value" id="paidStatCount">0</strong>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="card panel-card wide-panel">
+              <div class="panel-header">
+                <h3>Weekly Salary Summary</h3>
+                <span class="muted" id="weekRangeLabel">--</span>
+              </div>
+              <div class="salary-summary" id="salarySummaryBox"></div>
+            </div>
+
+            <div class="card panel-card stretch-card">
+              <div class="panel-header">
+                <h3>Recent Class Activity</h3>
+              </div>
+              <div class="list-stack" id="recentClassesList"></div>
+            </div>
+
+            <div class="card panel-card">
+              <div class="panel-header">
+                <h3>Today's Classes</h3>
+                <span class="muted" id="todayClassCount">0 scheduled</span>
+              </div>
+              <div class="list-stack" id="todayClassesList"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="students-view" class="view" aria-label="Student directory">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Student directory</p>
+              <h2>Students</h2>
+            </div>
+            <div class="header-actions">
+              <button type="button" class="secondary-button" id="companyFilterBtn">Companies</button>
+              <button type="button" class="primary-button" id="addStudentBtn">Add Student</button>
+            </div>
+          </div>
+
+          <div class="toolbar card">
+            <input id="studentSearch" type="search" placeholder="Search student" aria-label="Search student" />
+            <select id="studentCountryFilter" aria-label="Filter by country">
+              <option value="all">All countries</option>
+            </select>
+            <select id="studentCompanyFilter" aria-label="Filter by company">
+              <option value="all">All companies</option>
+            </select>
+          </div>
+
+          <div class="table-wrap card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Company</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="studentsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="schedule-view" class="view" aria-label="Weekly schedule">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Weekly Schedule</p>
+              <h2>Monday–Sunday plan</h2>
+            </div>
+            <div class="header-actions">
+              <button type="button" class="secondary-button" id="schedulePrevBtn">Previous</button>
+              <button type="button" class="secondary-button" id="scheduleTodayBtn">Today</button>
+              <button type="button" class="secondary-button" id="scheduleNextBtn">Next</button>
+              <button type="button" class="primary-button" id="addClassBtn">Add Classes</button>
+            </div>
+          </div>
+
+          <div class="calendar-shell card">
+            <div class="calendar-topbar">
+              <span id="scheduleWeekLabel">Week of --</span>
+            </div>
+            <div id="scheduleGrid" class="schedule-grid"></div>
+          </div>
+        </section>
+
+        <section id="payments-view" class="view" aria-label="Payments">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Payment records</p>
+              <h2>Weekly Payment Records</h2>
+            </div>
+          </div>
+
+          <div class="toolbar card filters-row">
+            <select id="paymentStatusFilter" aria-label="Payment status filter">
+              <option value="all">All payment status</option>
+              <option value="Paid">Paid</option>
+              <option value="Pending">Pending</option>
+            </select>
+            <select id="paymentStudentFilter" aria-label="Student payment filter">
+              <option value="all">All students</option>
+            </select>
+            <input id="paymentFromDate" type="date" aria-label="From date" />
+            <input id="paymentToDate" type="date" aria-label="To date" />
+          </div>
+
+          <div class="totals-strip card" id="paymentTotalsStrip"></div>
+
+          <div class="table-wrap card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Week</th>
+                  <th>Student</th>
+                  <th>Company</th>
+                  <th>Currency</th>
+                  <th>Classes</th>
+                  <th>Class date</th>
+                  <th>Duration</th>
+                  <th>Attendance</th>
+                  <th>Rate</th>
+                  <th>Subtotal</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="paymentsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="records-view" class="view" aria-label="Class records">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Class Records</p>
+              <h2>Class Log</h2>
+            </div>
+            <div class="header-actions">
+              <button type="button" class="primary-button" id="addRecordBtn">Add Class</button>
+            </div>
+          </div>
+
+          <div class="toolbar card records-toolbar">
+            <input id="recordSearch" type="search" placeholder="Filter records" aria-label="Filter record search" />
+            <select id="recordStatusFilter" aria-label="Class attendance filter">
+              <option value="all">All attendance</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="Present">Present</option>
+              <option value="Absent">Absent</option>
+              <option value="Cancelled">Cancelled</option>
+              <option value="Makeup">Makeup</option>
+            </select>
+          </div>
+
+          <div class="table-wrap card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Student</th>
+                  <th>Duration</th>
+                  <th>Class Type</th>
+                  <th>Attendance</th>
+                  <th>Notes</th>
+                  <th>Payment Amount</th>
+                  <th>Payment Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recordsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="reports-view" class="view" aria-label="Reports and analysis">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Teaching and revenue</p>
+              <h2>Reports &amp; Analysis</h2>
+            </div>
+          </div>
+
+          <div class="reports-toolbar card">
+            <label class="month-picker-label" for="reportMonthInput">Month</label>
+            <input id="reportMonthInput" type="month" aria-label="Month selector" />
+          </div>
+
+          <div class="stats-grid four-col" id="reportSummaryCards">
+            <div class="stat-card card">
+              <span class="stat-title">Paid</span>
+              <strong class="stat-value" id="reportPaidValue">₱0.00</strong>
+            </div>
+            <div class="stat-card card">
+              <span class="stat-title">Pending</span>
+              <strong class="stat-value" id="reportPendingValue">₱0.00</strong>
+            </div>
+            <div class="stat-card card">
+              <span class="stat-title">Cancelled</span>
+              <strong class="stat-value" id="reportCancelledValue">0</strong>
+            </div>
+            <div class="stat-card card">
+              <span class="stat-title">Minutes</span>
+              <strong class="stat-value" id="reportMinutesValue">0</strong>
+            </div>
+          </div>
+
+          <div class="analytics-grid">
+            <div class="card panel-card">
+              <div class="panel-header">
+                <h3>Attendance</h3>
+              </div>
+              <div id="attendanceBars"></div>
+            </div>
+
+            <div class="card panel-card">
+              <div class="panel-header">
+                <h3>Revenue by Student</h3>
+              </div>
+              <div id="revenueByStudent"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="settings-view" class="view" aria-label="Settings">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Settings</p>
+              <h2>Teacher Profile</h2>
+            </div>
+          </div>
+
+          <form id="settingsForm" class="card settings-card">
+            <div class="settings-grid">
+              <label>
+                Teacher name
+                <input id="teacherNameInput" type="text" />
+              </label>
+              <label>
+                Dashboard title
+                <input id="dashboardTitleInput" type="text" />
+              </label>
+              <label class="full-span">
+                Quote
+                <textarea id="settingsQuoteInput" rows="3"></textarea>
+              </label>
+              <label>
+                Default currency
+                <select id="defaultCurrencyInput">
+                  <option value="PHP">PHP</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="SGD">SGD</option>
+                  <option value="AUD">AUD</option>
+                </select>
+              </label>
+              <label>
+                PHP rate
+                <input id="phpRateInput" type="number" step="0.01" min="0" />
+              </label>
+
+              <label class="full-span">
+                Other exchange rates
+                <textarea id="exchangeRatesInput" rows="3"></textarea>
+              </label>
+              <label>
+                Theme
+                <select id="themeInput">
+                  <option value="soft">Soft</option>
+                  <option value="sage">Sage</option>
+                  <option value="lavender">Lavender</option>
+                  <option value="midnight">Midnight</option>
+                </select>
+              </label>
+              <label>
+                Font
+                <select id="fontInput">
+                  <option value="serif">Serif</option>
+                  <option value="sans">Sans</option>
+                </select>
+              </label>
+              <label>
+                Teacher timezone
+                <input id="timezoneInput" type="text" />
+              </label>
+              <label class="full-span">
+                Reminder settings
+                <textarea id="reminderSettingsInput" rows="3"></textarea>
+              </label>
+            </div>
+
+            <div class="settings-actions">
+              <button type="submit" class="primary-button">Save settings</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <div id="studentModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="studentModalTitle">Add Student</h3>
+          <button type="button" class="close-modal" data-close="studentModal" aria-label="Close">×</button>
+        </div>
+        <form id="studentForm">
+          <div class="modal-grid">
+            <label>
+              Student Name
+              <input type="text" name="name" required />
+            </label>
+            <label>
+              Age
+              <input type="number" name="age" min="1" />
+            </label>
+            <label>
+              Company
+              <input type="text" name="company" required />
+            </label>
+            <label>
+              Country
+              <input type="text" name="country" required />
+            </label>
+            <label>
+              Timezone
+              <input type="text" name="timezone" />
+            </label>
+            <label>
+              Currency
+              <select name="currency">
+                <option value="PHP">PHP</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="SGD">SGD</option>
+                <option value="AUD">AUD</option>
+              </select>
+            </label>
+            <label>
+              Payment Type
+              <select name="paymentType">
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Per Class">Per Class</option>
+              </select>
+            </label>
+            <label>
+              Book / Material
+              <input type="text" name="bookMaterial" />
+            </label>
+            <label>
+              Start Date
+              <input type="date" name="startDate" />
+            </label>
+            <label>
+              Status
+              <select name="status">
+                <option value="Active">Active</option>
+                <option value="Pending">Pending</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </label>
+            <label>
+              25-minute Rate
+              <input type="number" name="rate25" step="0.01" min="0" required />
+            </label>
+            <label>
+              50-minute Rate
+              <input type="number" name="rate50" step="0.01" min="0" required />
+            </label>
+            <label class="full-span">
+              Notes
+              <textarea name="notes" rows="3"></textarea>
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="secondary-button" data-close="studentModal">Cancel</button>
+            <button type="submit" class="primary-button">Save Student</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="classModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-content modal-content-small">
+        <div class="modal-header">
+          <h3 id="classModalTitle">Add Class</h3>
+          <button type="button" class="close-modal" data-close="classModal" aria-label="Close">×</button>
+        </div>
+        <form id="classForm">
+          <div class="modal-grid">
+            <label>
+              Student
+              <select name="studentId" id="classStudentSelect" required></select>
+            </label>
+            <label>
+              Date
+              <input type="date" name="date" required />
+            </label>
+            <label>
+              Start Time
+              <input type="time" name="startTime" required />
+            </label>
+            <label>
+              Duration
+              <select name="duration" required>
+                <option value="20">20 minutes</option>
+                <option value="25">25 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="50">50 minutes</option>
+                <option value="60">60 minutes</option>
+              </select>
+            </label>
+            <label>
+              Class Type
+              <select name="classType" required>
+                <option value="Trial">Trial</option>
+                <option value="Regular">Regular</option>
+                <option value="Free">Free</option>
+              </select>
+            </label>
+            <label>
+              Attendance / Status
+              <select name="attendance" required>
+                <option value="Scheduled">Scheduled</option>
+                <option value="Present">Present</option>
+                <option value="Absent">Absent</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Makeup">Makeup</option>
+              </select>
+            </label>
+            <label class="full-span">
+              Notes
+              <textarea name="notes" rows="3"></textarea>
+            </label>
+          </div>
+          <div id="classFormWarning" class="form-warning hidden"></div>
+          <div class="modal-actions">
+            <button type="button" class="secondary-button" data-close="classModal">Cancel</button>
+            <button type="submit" class="primary-button">Save Class</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
