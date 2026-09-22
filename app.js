@@ -1,4 +1,60 @@
 const STORAGE_KEY = 'teacher_vanessa_dashboard_state_v1';
+const COUNTRY_TIMEZONE_MAP = {
+  'Afghanistan': 'Asia/Kabul',
+  'Australia': 'Australia/Sydney',
+  'Austria': 'Europe/Vienna',
+  'Bahrain': 'Asia/Bahrain',
+  'Bangladesh': 'Asia/Dhaka',
+  'Belgium': 'Europe/Brussels',
+  'Brazil': 'America/Sao_Paulo',
+  'Canada': 'America/Toronto',
+  'China': 'Asia/Shanghai',
+  'Denmark': 'Europe/Copenhagen',
+  'Egypt': 'Africa/Cairo',
+  'France': 'Europe/Paris',
+  'Germany': 'Europe/Berlin',
+  'Greece': 'Europe/Athens',
+  'Hong Kong': 'Asia/Hong_Kong',
+  'India': 'Asia/Kolkata',
+  'Indonesia': 'Asia/Jakarta',
+  'Ireland': 'Europe/Dublin',
+  'Italy': 'Europe/Rome',
+  'Japan': 'Asia/Tokyo',
+  'Malaysia': 'Asia/Kuala_Lumpur',
+  'Mexico': 'America/Mexico_City',
+  'Netherlands': 'Europe/Amsterdam',
+  'New Zealand': 'Pacific/Auckland',
+  'Pakistan': 'Asia/Karachi',
+  'Philippines': 'Asia/Manila',
+  'Portugal': 'Europe/Lisbon',
+  'Saudi Arabia': 'Asia/Riyadh',
+  'Singapore': 'Asia/Singapore',
+  'South Korea': 'Asia/Seoul',
+  'Spain': 'Europe/Madrid',
+  'Sweden': 'Europe/Stockholm',
+  'Switzerland': 'Europe/Zurich',
+  'Taiwan': 'Asia/Taipei',
+  'Thailand': 'Asia/Bangkok',
+  'Turkey': 'Europe/Istanbul',
+  'United Arab Emirates': 'Asia/Dubai',
+  'United Kingdom': 'Europe/London',
+  'United States': 'America/New_York',
+  'Vietnam': 'Asia/Ho_Chi_Minh',
+  'South Africa': 'Africa/Johannesburg',
+  'Argentina': 'America/Argentina/Buenos_Aires',
+  'Ukraine': 'Europe/Kyiv',
+  'Romania': 'Europe/Bucharest',
+  'Poland': 'Europe/Warsaw',
+  'Norway': 'Europe/Oslo',
+  'Finland': 'Europe/Helsinki',
+  'Czech Republic': 'Europe/Prague',
+  'Israel': 'Asia/Jerusalem',
+  'UAE': 'Asia/Dubai',
+  'Qatar': 'Asia/Qatar'
+};
+
+const COUNTRY_OPTIONS = Object.keys(COUNTRY_TIMEZONE_MAP).sort();
+const CURRENCY_OPTIONS = ['PHP', 'USD', 'EUR', 'SGD', 'AUD', 'GBP', 'JPY', 'CAD', 'CHF', 'HKD', 'NZD', 'CNY', 'KRW', 'AED', 'THB', 'IDR', 'MYR', 'INR', 'SEK', 'NOK', 'DKK', 'SAR'];
 const DEFAULT_SETTINGS = {
   teacherName: 'Vanessa',
   dashboardTitle: "Vanessa's Dashboard",
@@ -39,9 +95,14 @@ const refs = {
   studentsTableBody: document.getElementById('studentsTableBody'),
   studentSearch: document.getElementById('studentSearch'),
   studentCountryFilter: document.getElementById('studentCountryFilter'),
+  studentStatusFilter: document.getElementById('studentStatusFilter'),
   studentCompanyFilter: document.getElementById('studentCompanyFilter'),
   addStudentBtn: document.getElementById('addStudentBtn'),
+  addCompanyBtn: document.getElementById('addCompanyBtn'),
   companyFilterBtn: document.getElementById('companyFilterBtn'),
+  companyList: document.getElementById('companyList'),
+  companyModal: document.getElementById('companyModal'),
+  companyForm: document.getElementById('companyForm'),
   studentModal: document.getElementById('studentModal'),
   studentModalTitle: document.getElementById('studentModalTitle'),
   studentForm: document.getElementById('studentForm'),
@@ -56,11 +117,12 @@ const refs = {
   scheduleTodayBtn: document.getElementById('scheduleTodayBtn'),
   scheduleNextBtn: document.getElementById('scheduleNextBtn'),
   addClassBtn: document.getElementById('addClassBtn'),
-  paymentsTableBody: document.getElementById('paymentsTableBody'),
+  paymentsList: document.getElementById('paymentsList'),
   paymentStatusFilter: document.getElementById('paymentStatusFilter'),
   paymentStudentFilter: document.getElementById('paymentStudentFilter'),
   paymentFromDate: document.getElementById('paymentFromDate'),
   paymentToDate: document.getElementById('paymentToDate'),
+  paymentBreakdown: document.getElementById('paymentBreakdown'),
   paymentTotalsStrip: document.getElementById('paymentTotalsStrip'),
   recordsTableBody: document.getElementById('recordsTableBody'),
   recordSearch: document.getElementById('recordSearch'),
@@ -79,7 +141,6 @@ const refs = {
   settingsQuoteInput: document.getElementById('settingsQuoteInput'),
   defaultCurrencyInput: document.getElementById('defaultCurrencyInput'),
   phpRateInput: document.getElementById('phpRateInput'),
-  exchangeRatesInput: document.getElementById('exchangeRatesInput'),
   themeInput: document.getElementById('themeInput'),
   fontInput: document.getElementById('fontInput'),
   timezoneInput: document.getElementById('timezoneInput'),
@@ -108,13 +169,20 @@ function loadState() {
     }
 
     const parsed = JSON.parse(raw);
+    const studentCompanies = Array.isArray(parsed.students)
+      ? parsed.students.map((student) => student.company).filter(Boolean)
+      : [];
+
     return {
       settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
       students: Array.isArray(parsed.students) ? parsed.students : [],
       classes: Array.isArray(parsed.classes) ? parsed.classes : [],
       payments: Array.isArray(parsed.payments) ? parsed.payments : [],
       quotes: Array.isArray(parsed.quotes) ? parsed.quotes : [],
-      schedules: Array.isArray(parsed.schedules) ? parsed.schedules : []
+      schedules: Array.isArray(parsed.schedules) ? parsed.schedules : [],
+      companies: Array.isArray(parsed.companies)
+        ? parsed.companies
+        : [...new Set(studentCompanies)]
     };
   } catch (error) {
     console.warn('Could not parse saved dashboard state:', error);
@@ -129,7 +197,8 @@ function createDefaultState() {
     classes: [],
     payments: [],
     quotes: [],
-    schedules: []
+    schedules: [],
+    companies: []
   };
 }
 
@@ -238,6 +307,7 @@ function buildDemoState() {
   const settings = { ...DEFAULT_SETTINGS, teacherName: 'Vanessa', dashboardTitle: "Vanessa's Dashboard" };
 
   const payments = createDemoPayments(classes, [studentA, studentB], settings);
+  const companies = ['Horizon Kids', 'Acme Language Co.'];
 
   return {
     settings,
@@ -245,7 +315,8 @@ function buildDemoState() {
     classes,
     payments,
     quotes: ['Keep showing up, one lesson at a time.'],
-    schedules: []
+    schedules: [],
+    companies
   };
 }
 
@@ -307,15 +378,34 @@ function bindEvents() {
   });
 
   refs.addStudentBtn.addEventListener('click', () => openStudentModal());
+  refs.addCompanyBtn.addEventListener('click', () => openCompanyModal());
   refs.companyFilterBtn.addEventListener('click', () => {
     refs.studentCompanyFilter.value = 'all';
     refs.studentCountryFilter.value = 'all';
     renderStudents();
   });
 
+  refs.companyForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const companyName = String(new FormData(refs.companyForm).get('companyName') || '').trim();
+    if (!companyName) {
+      return;
+    }
+
+    addCompany(companyName);
+    refs.studentCompanyFilter.value = companyName;
+    closeModal(refs.companyModal);
+    renderAll();
+  });
+
   refs.studentSearch.addEventListener('input', renderStudents);
   refs.studentCountryFilter.addEventListener('change', renderStudents);
-  refs.studentCompanyFilter.addEventListener('change', renderStudents);
+    refs.studentStatusFilter.addEventListener('change', renderStudents);
+  refs.studentForm.querySelector('[name="country"]').addEventListener('change', (event) => {
+    const country = event.target.value;
+    const timezone = COUNTRY_TIMEZONE_MAP[country] || 'UTC';
+    refs.studentForm.querySelector('[name="timezone"]').value = timezone;
+  });
 
   refs.studentForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -359,7 +449,7 @@ function bindEvents() {
       appState.students.push(payload);
     }
 
-    reconcilePaymentRecords({ preserveHistoricalRate: true });
+    reconcilePaymentRecords({ preserveHistoricalRate: false });
     persistState();
     closeModal(refs.studentModal);
     renderAll();
@@ -369,46 +459,51 @@ function bindEvents() {
     event.preventDefault();
     const formData = new FormData(refs.classForm);
     const studentId = formData.get('studentId');
-    const date = String(formData.get('date') || '');
+    const baseDate = String(formData.get('date') || '');
     const startTime = String(formData.get('startTime') || '');
     const duration = Number(formData.get('duration') || 0);
     const classType = String(formData.get('classType') || 'Regular');
-    const attendance = String(formData.get('attendance') || 'Scheduled');
+    const repeatCount = Math.max(0, Number(formData.get('repeatCount') || 0));
     const notes = String(formData.get('notes') || '').trim();
 
-    if (!studentId || !date || !startTime || !duration) {
+    if (!studentId || !baseDate || !startTime || !duration) {
       return;
     }
 
-    const overlap = detectOverlap({
-      id: classModalEditingId,
-      studentId,
-      date,
-      startTime,
-      duration
-    });
-
-    if (overlap) {
-      refs.classFormWarning.textContent = 'Warning: this class overlaps an existing class time and has not been saved.';
-      refs.classFormWarning.classList.remove('hidden');
-      return;
+    const candidateDates = [];
+    for (let offset = 0; offset <= repeatCount; offset += 1) {
+      candidateDates.push(formatDateInput(addDays(new Date(`${baseDate}T00:00:00`), offset)));
     }
 
-    const nextClass = {
-      id: classModalEditingId || generateId('class'),
+    const nextClasses = candidateDates.map((date, index) => ({
+      id: classModalEditingId && index === 0 ? classModalEditingId : generateId('class'),
       studentId,
       date,
       startTime,
       duration,
       classType,
-      attendance,
+      attendance: 'Scheduled',
       notes
-    };
+    }));
+
+    const hasOverlap = nextClasses.some((entry) => detectOverlap({
+      id: entry.id,
+      studentId: entry.studentId,
+      date: entry.date,
+      startTime: entry.startTime,
+      duration: entry.duration
+    }));
+
+    if (hasOverlap) {
+      refs.classFormWarning.textContent = 'Warning: one or more of these class slots overlaps an existing schedule and has not been saved.';
+      refs.classFormWarning.classList.remove('hidden');
+      return;
+    }
 
     if (classModalEditingId) {
-      appState.classes = appState.classes.map((item) => item.id === classModalEditingId ? nextClass : item);
+      appState.classes = appState.classes.map((item) => item.id === classModalEditingId ? nextClasses[0] : item);
     } else {
-      appState.classes.push(nextClass);
+      appState.classes.push(...nextClasses);
     }
 
     reconcilePaymentRecords({ preserveHistoricalRate: false });
@@ -435,13 +530,7 @@ function bindEvents() {
     appState.settings.quote = refs.settingsQuoteInput.value.trim() || DEFAULT_SETTINGS.quote;
     appState.settings.defaultCurrency = refs.defaultCurrencyInput.value;
     appState.settings.phpRate = Number(refs.phpRateInput.value || DEFAULT_SETTINGS.phpRate);
-
-    try {
-      const parsedRates = JSON.parse(refs.exchangeRatesInput.value || '{}');
-      appState.settings.exchangeRates = { ...DEFAULT_SETTINGS.exchangeRates, ...(parsedRates || {}) };
-    } catch (_error) {
-      appState.settings.exchangeRates = { ...DEFAULT_SETTINGS.exchangeRates };
-    }
+    appState.settings.exchangeRates = { ...DEFAULT_SETTINGS.exchangeRates };
 
     appState.settings.theme = refs.themeInput.value;
     appState.settings.font = refs.fontInput.value;
@@ -450,6 +539,7 @@ function bindEvents() {
 
     applyTheme(appState.settings.theme);
     applyFont(appState.settings.font);
+    reconcilePaymentRecords({ preserveHistoricalRate: false });
     persistState();
     renderAll();
   });
@@ -479,6 +569,10 @@ function bindEvents() {
 
   refs.addClassBtn.addEventListener('click', () => openClassModal());
 
+  document.getElementById('companyModal').addEventListener('click', (event) => {
+    if (event.target === refs.companyModal) closeModal(refs.companyModal);
+  });
+
   document.getElementById('studentModal').addEventListener('click', (event) => {
     if (event.target === refs.studentModal) closeModal(refs.studentModal);
   });
@@ -501,6 +595,7 @@ function setCurrentView(viewName) {
 
 function renderAll() {
   renderHeader();
+  populateStudentFormLookups();
   renderDashboard();
   renderStudents();
   renderSchedule();
@@ -612,37 +707,58 @@ function renderDashboard() {
 function renderStudents() {
   const keyword = refs.studentSearch.value.trim().toLowerCase();
   const countryValue = refs.studentCountryFilter.value;
+  const statusValue = refs.studentStatusFilter.value;
   const companyValue = refs.studentCompanyFilter.value;
 
   const filtered = appState.students.filter((student) => {
     const matchesText = !keyword || student.name.toLowerCase().includes(keyword);
     const matchesCountry = countryValue === 'all' || student.country === countryValue;
+    const matchesStatus = statusValue === 'all' || (student.status || 'Active') === statusValue;
     const matchesCompany = companyValue === 'all' || student.company === companyValue;
-    return matchesText && matchesCountry && matchesCompany;
+    return matchesText && matchesCountry && matchesStatus && matchesCompany;
   });
 
   const rows = filtered.length
     ? filtered
-        .map((student) => `
-          <tr class="student-row">
-            <td>
-              <div class="student-meta">
-                <strong>${student.name}</strong>
-                <span>${student.country}</span>
-              </div>
-            </td>
-            <td>${student.company}</td>
-            <td><span class="status-pill ${String(student.status || 'Active').toLowerCase()}">${student.status || 'Active'}</span></td>
-            <td>
-              <div class="action-buttons">
-                <button type="button" class="link-btn" data-action="edit-student" data-id="${student.id}">Edit</button>
-                <button type="button" class="link-btn danger" data-action="delete-student" data-id="${student.id}">Delete</button>
-              </div>
-            </td>
-          </tr>
-        `)
+        .map((student) => {
+          const status = student.status || 'Active';
+          const rate25 = Number(student.rate25 || 0);
+          const rate50 = Number(student.rate50 || 0);
+          const countryText = student.country || 'Unknown';
+          const timezoneText = student.timezone || 'Unknown';
+          return `
+            <tr class="student-row">
+              <td>
+                <div class="student-meta">
+                  <strong>${student.name}</strong>
+                  <span>${student.age ? `${student.age} years` : '—'} · ${student.paymentType || 'Weekly'}</span>
+                </div>
+              </td>
+              <td>${student.company || 'Independent'}</td>
+              <td>
+                <div class="country-stack">
+                  <span>${countryText}</span>
+                  <small>${timezoneText}</small>
+                </div>
+              </td>
+              <td>
+                <div class="rate-stack">
+                  <span>${formatCurrencyAmount(rate25, student.currency || 'PHP')} / 25 min</span>
+                  <span>${formatCurrencyAmount(rate50, student.currency || 'PHP')} / 50 min</span>
+                </div>
+              </td>
+              <td><span class="status-pill ${String(status).toLowerCase()}">${status}</span></td>
+              <td>
+                <div class="action-buttons">
+                  <button type="button" class="link-btn" data-action="edit-student" data-id="${student.id}">Edit</button>
+                  <button type="button" class="link-btn danger" data-action="delete-student" data-id="${student.id}">Delete</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        })
         .join('')
-    : '<tr><td colspan="4"><div class="empty-state">No students match your filter.</div></td></tr>';
+    : '<tr><td colspan="6"><div class="empty-state">No students match your filter.</div></td></tr>';
 
   refs.studentsTableBody.innerHTML = rows;
 
@@ -654,19 +770,69 @@ function renderStudents() {
     button.addEventListener('click', () => deleteStudent(button.dataset.id));
   });
 
-  const countries = [...new Set(appState.students.map((student) => student.country).filter(Boolean))].sort();
-  const companies = [...new Set(appState.students.map((student) => student.company).filter(Boolean))].sort();
+  const countryList = [...new Set([...COUNTRY_OPTIONS, ...appState.students.map((student) => student.country).filter(Boolean)])].sort();
+  const companies = [...new Set([...(appState.companies || []), ...appState.students.map((student) => student.company).filter(Boolean)])].sort();
 
   refs.studentCountryFilter.innerHTML = ['<option value="all">All countries</option>']
-    .concat(countries.map((country) => `<option value="${escapeHtml(country)}">${escapeHtml(country)}</option>`))
+    .concat(countryList.map((country) => `<option value="${escapeHtml(country)}">${escapeHtml(country)}</option>`))
     .join('');
 
   refs.studentCompanyFilter.innerHTML = ['<option value="all">All companies</option>']
     .concat(companies.map((company) => `<option value="${escapeHtml(company)}">${escapeHtml(company)}</option>`))
     .join('');
 
-  refs.studentCountryFilter.value = countryValue;
-  refs.studentCompanyFilter.value = companyValue;
+  refs.studentCountryFilter.value = countryValue || 'all';
+  refs.studentStatusFilter.value = statusValue || 'all';
+  refs.studentCompanyFilter.value = companyValue || 'all';
+
+  renderCompanyList();
+}
+
+function renderCompanyList() {
+  const companies = [...new Set([...(appState.companies || []), ...appState.students.map((student) => student.company).filter(Boolean)])].sort();
+
+  if (!refs.companyList) {
+    return;
+  }
+
+  refs.companyList.innerHTML = companies.length
+    ? `
+      <div class="company-list-header">
+        <strong>Companies</strong>
+        <span>${companies.length} saved</span>
+      </div>
+      <div class="company-badge-wrap">
+        ${companies
+          .map((company) => `
+            <div class="company-badge">
+              <span>${company}</span>
+              <button type="button" class="company-delete-btn" data-action="delete-company" data-company="${escapeHtml(company)}" aria-label="Delete company ${escapeHtml(company)}">×</button>
+            </div>
+          `)
+          .join('')}
+      </div>
+    `
+    : '<div class="empty-state">No companies saved yet.</div>';
+
+  refs.companyList.querySelectorAll('[data-action="delete-company"]').forEach((button) => {
+    button.addEventListener('click', () => deleteCompany(String(button.dataset.company || '').trim()));
+  });
+}
+
+function deleteCompany(companyName) {
+  const safeName = String(companyName || '').trim();
+  if (!safeName) return;
+
+  const confirmed = window.confirm(`Delete company “${safeName}”? This will remove it from the company list.`);
+  if (!confirmed) return;
+
+  appState.companies = (appState.companies || []).filter((company) => company !== safeName);
+  appState.students = appState.students.map((student) =>
+    student.company === safeName ? { ...student, company: 'Unassigned' } : student
+  );
+
+  persistState();
+  renderAll();
 }
 
 function renderSchedule() {
@@ -681,6 +847,7 @@ function renderSchedule() {
 
   refs.scheduleWeekLabel.textContent = `Week of ${formatWeekRange(weekLabels[0].day, weekLabels[6].day)}`;
 
+  const slotHeight = 54;
   const dayColumns = days
     .map((day) => {
       const dayKey = formatDateInput(day);
@@ -688,20 +855,22 @@ function renderSchedule() {
       return `
         <div class="day-column">
           <div class="day-label">${formatWeekdayShort(day)}<br><small>${formatDateShort(day)}</small></div>
-          <div class="day-track">
+          <div class="day-track" data-date="${dayKey}">
             ${buildTimeSlots()}
             ${classesForDay
               .map((item) => {
-                const top = getTimePosition(item.startTime, 7 * 60, 52);
-                const height = Math.max((item.duration / 30) * 52, 54);
+                const top = getTimePosition(item.startTime, 7 * 60, slotHeight);
+                const height = Math.max((Number(item.duration || 0) / 30) * slotHeight, 48);
                 const student = getStudentById(item.studentId);
                 const color = item.attendance === 'Cancelled' ? 'rgba(195, 90, 90, 0.18)' : item.attendance === 'Present' ? 'rgba(115, 197, 167, 0.25)' : 'rgba(166, 214, 232, 0.22)';
                 return `
-                  <button type="button" class="schedule-class" data-action="edit-class" data-id="${item.id}" style="top:${top}px;height:${height}px;background:${color};">
-                    <h4>${student ? student.name : 'Unknown student'}</h4>
-                    <p>${item.startTime} • ${item.duration}m</p>
-                    <p>${item.attendance}</p>
-                  </button>
+                  <div class="schedule-class ${item.attendance === 'Cancelled' ? 'is-cancelled' : ''}" data-action="edit-class" data-id="${item.id}" role="button" tabindex="0" style="top:${top}px;height:${height}px;background:${color};">
+                    <div class="schedule-class-main">
+                      <h4>${student ? student.name : 'Unknown student'}</h4>
+                      <p>${item.startTime} • ${item.duration}m</p>
+                      <p>${item.attendance}</p>
+                    </div>
+                  </div>
                 `;
               })
               .join('')}
@@ -720,12 +889,155 @@ function renderSchedule() {
 
   refs.scheduleGrid.innerHTML = `${timeLabels}${dayColumns}`;
 
-  refs.scheduleGrid.querySelectorAll('[data-action="edit-class"]').forEach((button) => {
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      openClassModal(button.dataset.id);
+  refs.scheduleGrid.querySelectorAll('.day-track').forEach((track) => {
+    track.addEventListener('click', (event) => {
+      if (event.target.closest('[data-schedule-action]')) {
+        return;
+      }
+      if (event.target.closest('.schedule-class')) {
+        return;
+      }
+
+      const rect = track.getBoundingClientRect();
+      const clickY = event.clientY - rect.top;
+      const totalMinutes = (22 - 7) * 60;
+      const minutesFromStart = Math.max(0, Math.min(totalMinutes, Math.round((clickY / rect.height) * totalMinutes)));
+      const snapped = Math.round(minutesFromStart / 30) * 30;
+      const slotMinutes = Math.min(22 * 60, 7 * 60 + snapped);
+      const hour = String(Math.floor(slotMinutes / 60)).padStart(2, '0');
+      const minute = String(slotMinutes % 60).padStart(2, '0');
+      openClassModal(null, { date: track.dataset.date, startTime: `${hour}:${minute}` });
     });
   });
+
+  refs.scheduleGrid.querySelectorAll('.schedule-class').forEach((card) => {
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('[data-schedule-action]')) {
+        return;
+      }
+
+      const classId = card.dataset.id;
+      const classItem = appState.classes.find((item) => item.id === classId);
+      if (!classItem) return;
+
+      document.querySelectorAll('.schedule-class.menu-open').forEach((openCard) => {
+        if (openCard !== card) {
+          openCard.classList.remove('menu-open');
+        }
+      });
+
+      openScheduleQuickAction(card, classItem);
+      card.classList.add('menu-open');
+    });
+
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        card.click();
+      }
+    });
+
+    card.querySelectorAll('[data-schedule-action]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const classId = card.dataset.id;
+        const action = button.dataset.scheduleAction;
+
+        if (action === 'edit') {
+          openClassModal(classId);
+        }
+        if (action === 'delete') {
+          deleteClass(classId);
+        }
+        if (action === 'present') {
+          updateClassAttendance(classId, 'Present');
+        }
+        if (action === 'absent') {
+          updateClassAttendance(classId, 'Absent');
+        }
+        if (action === 'cancelled') {
+          updateClassAttendance(classId, 'Cancelled');
+        }
+      });
+    });
+  });
+
+  const quickAction = document.getElementById('scheduleQuickAction');
+  if (quickAction) {
+    quickAction.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-schedule-action]');
+      if (!target) {
+        if (event.target.closest('[data-close-quick-action]')) {
+          quickAction.classList.add('hidden');
+          quickAction.setAttribute('aria-hidden', 'true');
+          quickAction.innerHTML = '';
+        }
+        return;
+      }
+
+      const classId = target.dataset.id;
+      const action = target.dataset.scheduleAction;
+
+      if (action === 'close-quick-action') {
+        quickAction.classList.add('hidden');
+        quickAction.setAttribute('aria-hidden', 'true');
+        quickAction.innerHTML = '';
+        return;
+      }
+
+      if (action === 'edit') {
+        openClassModal(classId);
+      }
+      if (action === 'delete') {
+        deleteClass(classId);
+      }
+      if (action === 'present' || action === 'absent' || action === 'cancelled') {
+        updateClassAttendance(classId, action === 'present' ? 'Present' : action === 'absent' ? 'Absent' : 'Cancelled');
+      }
+
+      quickAction.classList.add('hidden');
+      quickAction.setAttribute('aria-hidden', 'true');
+      quickAction.innerHTML = '';
+    });
+  }
+}
+
+function openScheduleQuickAction(card, classItem) {
+  const quickAction = document.getElementById('scheduleQuickAction');
+  if (!quickAction) return;
+
+  const student = getStudentById(classItem.studentId);
+  const endMinutes = timeToMinutes(classItem.startTime) + Number(classItem.duration || 0);
+  const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
+  const dateText = `${formatDisplayDate(classItem.date)} • ${classItem.startTime}–${endTime}`;
+  const attendance = classItem.attendance || 'Scheduled';
+
+  quickAction.innerHTML = `
+    <div class="schedule-quick-card">
+      <button type="button" class="quick-close" data-schedule-action="close-quick-action" data-close-quick-action="true" aria-label="Close popup">×</button>
+      <h3>${student ? student.name : 'Unknown student'}</h3>
+      <div class="quick-date">${dateText}</div>
+      <div class="quick-status-row">
+        <button type="button" class="quick-status present ${attendance === 'Present' ? 'selected' : ''}" data-schedule-action="present" data-id="${classItem.id}">Present</button>
+        <button type="button" class="quick-status absent ${attendance === 'Absent' ? 'selected' : ''}" data-schedule-action="absent" data-id="${classItem.id}">Absent</button>
+        <button type="button" class="quick-status cancelled ${attendance === 'Cancelled' ? 'selected' : ''}" data-schedule-action="cancelled" data-id="${classItem.id}">Cancelled</button>
+      </div>
+      <div class="quick-secondary-actions">
+        <button type="button" data-schedule-action="edit" data-id="${classItem.id}">Edit class</button>
+        <button type="button" class="danger-action" data-schedule-action="delete" data-id="${classItem.id}">Delete class</button>
+      </div>
+    </div>
+  `;
+
+  quickAction.classList.remove('hidden');
+  quickAction.setAttribute('aria-hidden', 'false');
+
+  const cardRect = card.getBoundingClientRect();
+  const popoverWidth = 260;
+  const left = Math.min(window.innerWidth - popoverWidth - 20, Math.max(20, cardRect.left + 20));
+  const top = Math.max(20, cardRect.top + 12);
+  quickAction.style.left = `${left}px`;
+  quickAction.style.top = `${top}px`;
 }
 
 function renderPayments() {
@@ -765,39 +1077,161 @@ function renderPayments() {
     </div>
   `;
 
-  refs.paymentsTableBody.innerHTML = filtered.length
-    ? filtered
-        .map((payment) => `
-          <tr class="payment-row">
-            <td>${getWeekLabel(payment.weekStart || payment.classDate)}</td>
-            <td>${payment.studentName}</td>
-            <td>${payment.company}</td>
-            <td>${payment.currency}</td>
-            <td>${payment.classes || 1}</td>
-            <td>${formatDisplayDate(payment.classDate)}</td>
-            <td>${payment.duration} min</td>
-            <td><span class="attendance-pill ${String(payment.attendance || 'Scheduled').toLowerCase()}">${payment.attendance || 'Scheduled'}</span></td>
-            <td>${formatCurrencyAmount(Number(payment.rate || 0), payment.currency)}</td>
-            <td>${formatCurrencyAmount(Number(payment.subtotal || payment.amount || 0), payment.currency)}</td>
-            <td><span class="payment-pill ${String(payment.status || 'Pending').toLowerCase()}">${payment.status || 'Pending'}</span></td>
-            <td>
-              <div class="action-buttons">
-                <button type="button" class="link-btn" data-action="mark-paid" data-id="${payment.id}">${payment.status === 'Paid' ? 'Paid' : 'Mark paid'}</button>
-                <button type="button" class="link-btn" data-action="mark-unpaid" data-id="${payment.id}">${payment.status === 'Pending' ? 'Unpaid' : 'Mark unpaid'}</button>
+  const groupedByStudentWeek = new Map();
+
+  filtered.forEach((payment) => {
+    const studentId = payment.studentId;
+    const weekKey = payment.weekStart || payment.classDate;
+
+    if (!groupedByStudentWeek.has(studentId)) {
+      groupedByStudentWeek.set(studentId, new Map());
+    }
+
+    const studentWeeks = groupedByStudentWeek.get(studentId);
+    if (!studentWeeks.has(weekKey)) {
+      studentWeeks.set(weekKey, []);
+    }
+
+    studentWeeks.get(weekKey).push(payment);
+  });
+
+  const paymentCards = Array.from(groupedByStudentWeek.entries())
+    .sort(([leftId], [rightId]) => (getStudentById(leftId)?.name || '').localeCompare(getStudentById(rightId)?.name || ''))
+    .flatMap(([studentId, studentWeeks]) => {
+      const student = getStudentById(studentId);
+      const studentName = student?.name || 'Unknown student';
+      const studentCountry = student?.country || 'Unknown';
+
+      return Array.from(studentWeeks.entries())
+        .sort(([left], [right]) => new Date(right) - new Date(left))
+        .map(([weekKey, weekPayments]) => {
+          const status = weekPayments.every((payment) => payment.status === 'Paid') ? 'Paid' : 'Pending';
+          const weeklyTotal = weekPayments.reduce((sum, payment) => sum + convertCurrencyValue(Number(payment.subtotal || payment.amount || 0), payment.currency, appState.settings.defaultCurrency || 'PHP'), 0);
+
+          return `
+            <div class="payment-card">
+              <div class="payment-card-header">
+                <span>WEEK OF ${getWeekLabel(weekKey)}</span>
+                <span class="payment-pill ${String(status).toLowerCase()}">${status}</span>
               </div>
-            </td>
-          </tr>
-        `)
-        .join('')
-    : '<tr><td colspan="12"><div class="empty-state">No payment records match these filters.</div></td></tr>';
 
-  refs.paymentsTableBody.querySelectorAll('[data-action="mark-paid"]').forEach((button) => {
-    button.addEventListener('click', () => setPaymentStatus(button.dataset.id, 'Paid'));
+              <div class="payment-student-row">
+                <div class="payment-student-meta">
+                  <h3>${studentName}</h3>
+                  <p>${weekPayments.length} payable class${weekPayments.length === 1 ? '' : 'es'}</p>
+                  <p>${studentCountry}</p>
+                </div>
+                <div class="payment-student-total">${formatCurrencyAmount(weeklyTotal, appState.settings.defaultCurrency || 'PHP')}</div>
+              </div>
+
+              <div class="payment-entry-list">
+                ${weekPayments
+                  .map((payment) => {
+                    const amount = Number(payment.subtotal || payment.amount || 0);
+                    const paymentStatus = payment.status === 'Paid' ? 'Paid' : 'Pending';
+                    const attendance = payment.attendance || 'Scheduled';
+                    return `
+                      <div class="payment-entry">
+                        <div class="payment-entry-meta">
+                          <span>${formatDisplayDate(payment.classDate)} • ${payment.duration} min • ${attendance}</span>
+                          <small>${payment.company || student?.company || 'Independent'}</small>
+                        </div>
+                        <div class="payment-entry-amounts">
+                          <strong>${formatCurrencyAmount(amount, payment.currency)}</strong>
+                          <span class="payment-inline-pill ${paymentStatus.toLowerCase()}">${paymentStatus}</span>
+                        </div>
+                      </div>
+                    `;
+                  })
+                  .join('')}
+              </div>
+
+              <div class="payment-card-footer">
+                <span>Weekly subtotal</span>
+                <strong>${formatCurrencyAmount(weeklyTotal, appState.settings.defaultCurrency || 'PHP')}</strong>
+              </div>
+
+              <div class="payment-card-actions">
+                <button type="button" class="link-btn" data-action="mark-paid" data-ids="${weekPayments.map((payment) => payment.id).join(',')}">${status === 'Paid' ? 'Paid' : 'Mark paid'}</button>
+                <button type="button" class="link-btn" data-action="mark-unpaid" data-ids="${weekPayments.map((payment) => payment.id).join(',')}">${status === 'Pending' ? 'Unpaid' : 'Mark unpaid'}</button>
+              </div>
+            </div>
+          `;
+        });
+    })
+    .flat();
+
+  refs.paymentsList.innerHTML = paymentCards.length
+    ? paymentCards.join('')
+    : '<div class="empty-state">No payment records match these filters.</div>';
+
+  refs.paymentsList.querySelectorAll('[data-action="mark-paid"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const ids = button.dataset.ids ? button.dataset.ids.split(',').filter(Boolean) : [];
+      setPaymentStatus(ids, 'Paid');
+    });
   });
 
-  refs.paymentsTableBody.querySelectorAll('[data-action="mark-unpaid"]').forEach((button) => {
-    button.addEventListener('click', () => setPaymentStatus(button.dataset.id, 'Pending'));
+  refs.paymentsList.querySelectorAll('[data-action="mark-unpaid"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const ids = button.dataset.ids ? button.dataset.ids.split(',').filter(Boolean) : [];
+      setPaymentStatus(ids, 'Pending');
+    });
   });
+
+  renderPaymentBreakdown(filtered);
+}
+
+function renderPaymentBreakdown(filteredPayments) {
+  const byStudent = {};
+  const byWeek = {};
+
+  filteredPayments.forEach((payment) => {
+    const studentTotal = convertCurrencyValue(Number(payment.subtotal || payment.amount || 0), payment.currency, appState.settings.defaultCurrency || 'PHP');
+    byStudent[payment.studentId] = (byStudent[payment.studentId] || 0) + studentTotal;
+    byWeek[payment.weekStart || payment.classDate] = (byWeek[payment.weekStart || payment.classDate] || 0) + studentTotal;
+  });
+
+  const studentEntries = Object.entries(byStudent);
+  const weekEntries = Object.entries(byWeek);
+
+  if (!refs.paymentBreakdown) {
+    return;
+  }
+
+  refs.paymentBreakdown.innerHTML = `
+    <div class="payment-breakdown-grid">
+      <div class="payment-breakdown-section">
+        <h4>Student totals</h4>
+        ${studentEntries.length
+          ? studentEntries
+              .map(([studentId, total]) => {
+                const student = getStudentById(studentId);
+                return `
+                  <div class="breakdown-row">
+                    <span>${student ? student.name : 'Unknown student'}</span>
+                    <strong>${formatCurrencyAmount(total, appState.settings.defaultCurrency || 'PHP')}</strong>
+                  </div>
+                `;
+              })
+              .join('')
+          : '<div class="empty-state">No student totals.</div>'}
+      </div>
+      <div class="payment-breakdown-section">
+        <h4>Weekly totals</h4>
+        ${weekEntries.length
+          ? weekEntries
+              .map(([week, total]) => `
+                <div class="breakdown-row">
+                  <span>${getWeekLabel(week)}</span>
+                  <strong>${formatCurrencyAmount(total, appState.settings.defaultCurrency || 'PHP')}</strong>
+                </div>
+              `)
+              .join('')
+          : '<div class="empty-state">No weekly totals.</div>'}
+      </div>
+    </div>
+  `;
 }
 
 function renderClassRecords() {
@@ -917,12 +1351,16 @@ function renderReports() {
 }
 
 function renderSettings() {
+  const currencyOptions = [...new Set([...CURRENCY_OPTIONS, appState.settings.defaultCurrency, ...appState.students.map((student) => student.currency).filter(Boolean)])];
+  refs.defaultCurrencyInput.innerHTML = currencyOptions
+    .map((currency) => `<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`)
+    .join('');
+
   refs.teacherNameInput.value = appState.settings.teacherName || DEFAULT_SETTINGS.teacherName;
   refs.dashboardTitleInput.value = appState.settings.dashboardTitle || DEFAULT_SETTINGS.dashboardTitle;
   refs.settingsQuoteInput.value = appState.settings.quote || DEFAULT_SETTINGS.quote;
   refs.defaultCurrencyInput.value = appState.settings.defaultCurrency || DEFAULT_SETTINGS.defaultCurrency;
   refs.phpRateInput.value = String(appState.settings.phpRate || DEFAULT_SETTINGS.phpRate);
-  refs.exchangeRatesInput.value = JSON.stringify(appState.settings.exchangeRates || DEFAULT_SETTINGS.exchangeRates, null, 2);
   refs.themeInput.value = appState.settings.theme || DEFAULT_SETTINGS.theme;
   refs.fontInput.value = appState.settings.font || DEFAULT_SETTINGS.font;
   refs.timezoneInput.value = appState.settings.teacherTimezone || DEFAULT_SETTINGS.teacherTimezone;
@@ -941,22 +1379,61 @@ function populateStaticFilters() {
     .join('');
 }
 
+function populateStudentFormLookups() {
+  const countrySelect = refs.studentForm.querySelector('[name="country"]');
+  const currencySelect = refs.studentForm.querySelector('[name="currency"]');
+  const companyInput = refs.studentForm.querySelector('[name="company"]');
+  const companySuggestions = document.getElementById('companySuggestions');
+
+  if (countrySelect) {
+    const selectedValue = countrySelect.value || 'Philippines';
+    const combinedCountries = [...new Set([...COUNTRY_OPTIONS, ...appState.students.map((student) => student.country).filter(Boolean)])].sort();
+    countrySelect.innerHTML = combinedCountries.map((country) => `<option value="${escapeHtml(country)}">${escapeHtml(country)}</option>`).join('');
+    countrySelect.value = combinedCountries.includes(selectedValue) ? selectedValue : 'Philippines';
+  }
+
+  if (currencySelect) {
+    const selectedCurrency = currencySelect.value || appState.settings.defaultCurrency || 'PHP';
+    const combinedCurrencies = [...new Set([...CURRENCY_OPTIONS, ...(appState.students.map((student) => student.currency).filter(Boolean))])];
+    currencySelect.innerHTML = combinedCurrencies.map((currency) => `<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`).join('');
+    currencySelect.value = combinedCurrencies.includes(selectedCurrency) ? selectedCurrency : appState.settings.defaultCurrency || 'PHP';
+  }
+
+  if (companyInput && companySuggestions) {
+    const combinedCompanies = [...new Set([...(appState.companies || []), ...appState.students.map((student) => student.company).filter(Boolean)])].sort();
+    companySuggestions.innerHTML = combinedCompanies.map((company) => `<option value="${escapeHtml(company)}"></option>`).join('');
+  }
+}
+
+function addCompany(companyName) {
+  const cleanName = String(companyName || '').trim();
+  if (!cleanName) return;
+
+  appState.companies = [...new Set([...(appState.companies || []), cleanName])].sort();
+  persistState();
+}
+
+function openCompanyModal() {
+  refs.companyForm.reset();
+  refs.companyModal.classList.remove('hidden');
+  refs.companyModal.setAttribute('aria-hidden', 'false');
+}
+
 function openStudentModal(studentId = null) {
   studentModalEditingId = studentId;
   refs.studentForm.reset();
+  populateStudentFormLookups();
   refs.studentModalTitle.textContent = studentId ? 'Edit Student' : 'Add Student';
 
   if (studentId) {
     const student = appState.students.find((entry) => entry.id === studentId);
     if (!student) return;
-    const entries = new FormData(refs.studentForm);
-    Object.keys(Object.fromEntries(entries)).forEach(() => {});
 
     refs.studentForm.querySelector('[name="name"]').value = student.name || '';
     refs.studentForm.querySelector('[name="age"]').value = student.age || 0;
     refs.studentForm.querySelector('[name="company"]').value = student.company || '';
-    refs.studentForm.querySelector('[name="country"]').value = student.country || '';
-    refs.studentForm.querySelector('[name="timezone"]').value = student.timezone || '';
+    refs.studentForm.querySelector('[name="country"]').value = student.country || 'Philippines';
+    refs.studentForm.querySelector('[name="timezone"]').value = student.timezone || (COUNTRY_TIMEZONE_MAP[student.country] || 'UTC');
     refs.studentForm.querySelector('[name="currency"]').value = student.currency || appState.settings.defaultCurrency;
     refs.studentForm.querySelector('[name="paymentType"]').value = student.paymentType || 'Weekly';
     refs.studentForm.querySelector('[name="bookMaterial"]').value = student.bookMaterial || '';
@@ -965,6 +1442,10 @@ function openStudentModal(studentId = null) {
     refs.studentForm.querySelector('[name="rate25"]').value = student.rate25 || 0;
     refs.studentForm.querySelector('[name="rate50"]').value = student.rate50 || 0;
     refs.studentForm.querySelector('[name="notes"]').value = student.notes || '';
+  } else {
+    refs.studentForm.querySelector('[name="country"]').value = 'Philippines';
+    refs.studentForm.querySelector('[name="timezone"]').value = 'Asia/Manila';
+    refs.studentForm.querySelector('[name="currency"]').value = appState.settings.defaultCurrency || 'PHP';
   }
 
   refs.studentModal.classList.remove('hidden');
@@ -977,11 +1458,12 @@ function closeModal(modal) {
   refs.classFormWarning.classList.add('hidden');
   refs.classFormWarning.textContent = '';
   refs.classForm.reset();
+  refs.companyForm.reset();
   classModalEditingId = null;
   studentModalEditingId = null;
 }
 
-function openClassModal(classId = null) {
+function openClassModal(classId = null, defaults = {}) {
   classModalEditingId = classId;
   refs.classForm.reset();
   refs.classFormWarning.classList.add('hidden');
@@ -990,23 +1472,24 @@ function openClassModal(classId = null) {
 
   populateStaticFilters();
 
-  const defaultDate = formatDateInput(stripTime(new Date()));
+  const defaultDate = defaults.date || formatDateInput(stripTime(new Date()));
+  const defaultTime = defaults.startTime || '09:00';
   refs.classForm.querySelector('[name="date"]').value = defaultDate;
   refs.classForm.querySelector('[name="duration"]').value = '50';
   refs.classForm.querySelector('[name="classType"]').value = 'Regular';
-  refs.classForm.querySelector('[name="attendance"]').value = 'Scheduled';
-  refs.classForm.querySelector('[name="startTime"]').value = '09:00';
+  refs.classForm.querySelector('[name="startTime"]').value = defaultTime;
+  refs.classForm.querySelector('[name="repeatCount"]').value = '0';
 
   if (classId) {
     const currentClass = appState.classes.find((entry) => entry.id === classId);
     if (currentClass) {
       refs.classForm.querySelector('[name="studentId"]').value = currentClass.studentId || '';
       refs.classForm.querySelector('[name="date"]').value = currentClass.date || defaultDate;
-      refs.classForm.querySelector('[name="startTime"]').value = currentClass.startTime || '09:00';
+      refs.classForm.querySelector('[name="startTime"]').value = currentClass.startTime || defaultTime;
       refs.classForm.querySelector('[name="duration"]').value = String(currentClass.duration || 50);
       refs.classForm.querySelector('[name="classType"]').value = currentClass.classType || 'Regular';
-      refs.classForm.querySelector('[name="attendance"]').value = currentClass.attendance || 'Scheduled';
       refs.classForm.querySelector('[name="notes"]').value = currentClass.notes || '';
+      refs.classForm.querySelector('[name="repeatCount"]').value = '0';
     }
   }
 
@@ -1041,17 +1524,27 @@ function deleteClass(classId) {
   renderAll();
 }
 
-function setPaymentStatus(paymentId, status) {
+function setPaymentStatus(paymentIdOrIds, status) {
+  const ids = (Array.isArray(paymentIdOrIds) ? paymentIdOrIds : [paymentIdOrIds]).map((id) => String(id));
+
   appState.payments = appState.payments.map((payment) => {
-    if (payment.id === paymentId) {
+    if (ids.includes(String(payment.id))) {
       return { ...payment, status };
     }
     return payment;
   });
   persistState();
-  renderPayments();
-  renderDashboard();
-  renderReports();
+  renderAll();
+}
+
+function updateClassAttendance(classId, attendance) {
+  appState.classes = appState.classes.map((item) => {
+    if (item.id !== classId) return item;
+    return { ...item, attendance };
+  });
+  reconcilePaymentRecords({ preserveHistoricalRate: false });
+  persistState();
+  renderAll();
 }
 
 function detectOverlap(candidate) {
@@ -1072,8 +1565,7 @@ function detectOverlap(candidate) {
 }
 
 function reconcilePaymentRecords({ preserveHistoricalRate = true } = {}) {
-  const reconciliation = [];
-  const classMap = new Map(appState.classes.map((item) => [item.id, item]));
+  const nextPayments = [];
 
   for (const currentClass of appState.classes) {
     const student = getStudentById(currentClass.studentId);
@@ -1081,16 +1573,14 @@ function reconcilePaymentRecords({ preserveHistoricalRate = true } = {}) {
 
     const payable = isClassPayable(currentClass, student);
     if (!payable) {
-      if (appState.payments.some((payment) => payment.classId === currentClass.id)) {
-        appState.payments = appState.payments.filter((payment) => payment.classId !== currentClass.id);
-      }
       continue;
     }
 
     const previous = appState.payments.find((payment) => payment.classId === currentClass.id);
     const rate = getRateForClass(student, currentClass.duration);
-    const amount = roundMoney(Number(rate));
     const exchangeRate = getExchangeRate(student.currency || appState.settings.defaultCurrency);
+    const amount = roundMoney(Number(rate));
+
     const record = {
       id: previous?.id || generateId('payment'),
       classId: currentClass.id,
@@ -1111,17 +1601,7 @@ function reconcilePaymentRecords({ preserveHistoricalRate = true } = {}) {
       finalPhpAmount: preserveHistoricalRate && previous ? previous.finalPhpAmount : roundMoney(amount * exchangeRate)
     };
 
-    reconciliation.push(record);
-  }
-
-  const nextPayments = [];
-  for (const record of reconciliation) {
-    const previous = appState.payments.find((item) => item.classId === record.classId);
-    if (previous && preserveHistoricalRate) {
-      nextPayments.push({ ...previous, ...record, id: previous.id });
-    } else {
-      nextPayments.push(record);
-    }
+    nextPayments.push(record);
   }
 
   appState.payments = nextPayments;
@@ -1166,7 +1646,11 @@ function formatDateShort(date) {
 }
 
 function formatDateInput(date) {
-  return new Date(date).toISOString().slice(0, 10);
+  const value = new Date(date);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function stripTime(date) {
@@ -1235,16 +1719,13 @@ function getRateForClass(student, duration) {
 
 function isClassPayable(classItem, student) {
   if (!student) return false;
-  if (String(classItem.attendance || '').toLowerCase() === 'cancelled') return false;
-  if (String(classItem.attendance || '').toLowerCase() === 'scheduled') return false;
-  if (String(classItem.classType || '').toLowerCase() === 'trial') return false;
-  if (String(classItem.classType || '').toLowerCase() === 'free') return false;
-  if (String(classItem.attendance || '').toLowerCase() === 'absent') {
-    return String(classItem.classType || '').toLowerCase() === 'regular' || String(classItem.classType || '').toLowerCase() === 'makeup';
-  }
-  if (String(classItem.attendance || '').toLowerCase() === 'present') {
-    return String(classItem.classType || '').toLowerCase() === 'regular' || String(classItem.classType || '').toLowerCase() === 'makeup';
-  }
+
+  const attendance = String(classItem.attendance || '').toLowerCase();
+  const classType = String(classItem.classType || '').toLowerCase();
+
+  if (attendance === 'cancelled' || attendance === 'scheduled') return false;
+  if (classType === 'trial' || classType === 'free') return false;
+  if (attendance === 'present' || attendance === 'absent' || attendance === 'makeup') return true;
   return false;
 }
 
@@ -1279,8 +1760,8 @@ function timeToMinutes(value) {
 
 function getTimePosition(startTime, dayStartMinutes, slotHeight) {
   const minutes = timeToMinutes(startTime);
-  const offset = Math.max(minutes - dayStartMinutes, 0);
-  return (offset / 30) * slotHeight;
+  const offsetMinutes = Math.max(minutes - dayStartMinutes, 0);
+  return (offsetMinutes / 30) * slotHeight;
 }
 
 function buildTimeSlots(includeLabels = false) {
@@ -1289,6 +1770,7 @@ function buildTimeSlots(includeLabels = false) {
   const slots = [];
   for (let hour = startHour; hour <= endHour; hour += 1) {
     for (let minute = 0; minute < 60; minute += 30) {
+      if (hour === endHour && minute === 30) continue;
       const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
       if (includeLabels) {
         slots.push(`<div class="time-slot time-slot-label"><span>${time}</span></div>`);
