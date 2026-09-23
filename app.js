@@ -61,6 +61,7 @@ const DEFAULT_SETTINGS = {
   quote: 'Add an encouraging quote for your dashboard.',
   defaultCurrency: 'PHP',
   phpRate: 58.8,
+  milestoneReminders: [],
   exchangeRates: {
     PHP: 1,
     USD: 58.8,
@@ -92,6 +93,7 @@ const refs = {
   dashboardTitle: document.getElementById('dashboardTitle'),
   dashboardQuoteInput: document.getElementById('dashboardQuoteInput'),
   saveQuoteBtn: document.getElementById('saveQuoteBtn'),
+  dashboardReminderBanner: document.getElementById('dashboardReminderBanner'),
   studentsTableBody: document.getElementById('studentsTableBody'),
   studentSearch: document.getElementById('studentSearch'),
   studentCountryFilter: document.getElementById('studentCountryFilter'),
@@ -126,15 +128,22 @@ const refs = {
   paymentTotalsStrip: document.getElementById('paymentTotalsStrip'),
   recordsTableBody: document.getElementById('recordsTableBody'),
   recordSearch: document.getElementById('recordSearch'),
+  recordMonthInput: document.getElementById('recordMonthInput'),
   recordStatusFilter: document.getElementById('recordStatusFilter'),
   addRecordBtn: document.getElementById('addRecordBtn'),
   reportMonthInput: document.getElementById('reportMonthInput'),
   reportPaidValue: document.getElementById('reportPaidValue'),
   reportPendingValue: document.getElementById('reportPendingValue'),
+  reportTotalValue: document.getElementById('reportTotalValue'),
   reportCancelledValue: document.getElementById('reportCancelledValue'),
   reportMinutesValue: document.getElementById('reportMinutesValue'),
   attendanceBars: document.getElementById('attendanceBars'),
   revenueByStudent: document.getElementById('revenueByStudent'),
+  monthTotalStatValue: document.getElementById('monthTotalStatValue'),
+  exchangeRateCurrencyInput: document.getElementById('exchangeRateCurrencyInput'),
+  exchangeRateValueInput: document.getElementById('exchangeRateValueInput'),
+  saveExchangeRateBtn: document.getElementById('saveExchangeRateBtn'),
+  exchangeRateList: document.getElementById('exchangeRateList'),
   settingsForm: document.getElementById('settingsForm'),
   teacherNameInput: document.getElementById('teacherNameInput'),
   dashboardTitleInput: document.getElementById('dashboardTitleInput'),
@@ -144,7 +153,11 @@ const refs = {
   themeInput: document.getElementById('themeInput'),
   fontInput: document.getElementById('fontInput'),
   timezoneInput: document.getElementById('timezoneInput'),
-  reminderSettingsInput: document.getElementById('reminderSettingsInput')
+  reminderSettingsInput: document.getElementById('reminderSettingsInput'),
+  milestoneStudentSelect: document.getElementById('milestoneStudentSelect'),
+  milestoneThresholdSelect: document.getElementById('milestoneThresholdSelect'),
+  addMilestoneReminderBtn: document.getElementById('addMilestoneReminderBtn'),
+  milestoneReminderList: document.getElementById('milestoneReminderList')
 };
 
 function init() {
@@ -518,10 +531,57 @@ function bindEvents() {
   refs.paymentToDate.addEventListener('change', renderPayments);
 
   refs.recordSearch.addEventListener('input', renderClassRecords);
+  if (refs.recordMonthInput) {
+    refs.recordMonthInput.addEventListener('change', renderClassRecords);
+  }
   refs.recordStatusFilter.addEventListener('change', renderClassRecords);
   refs.addRecordBtn.addEventListener('click', () => openClassModal());
 
   refs.reportMonthInput.addEventListener('change', renderReports);
+  if (refs.exchangeRateCurrencyInput) {
+    refs.exchangeRateCurrencyInput.addEventListener('change', () => {
+      renderExchangeRates();
+      updateSelectedExchangeRateInput();
+    });
+  }
+  if (refs.exchangeRateValueInput) {
+    refs.exchangeRateValueInput.addEventListener('input', () => {
+      // Keep the user's manual typing until they explicitly save.
+      // We do not re-render while they are editing to avoid losing characters.
+    });
+  }
+  if (refs.saveExchangeRateBtn) {
+    refs.saveExchangeRateBtn.addEventListener('click', () => {
+      const currency = refs.exchangeRateCurrencyInput.value || 'PHP';
+      const rawValue = String(refs.exchangeRateValueInput.value || '').trim();
+      const sanitizedValue = rawValue
+        .replace(/,/g, '.')
+        .replace(/[^0-9.]/g, '')
+        .replace(/\.(?=.*\.)/g, '');
+      const parsedValue = sanitizedValue === '' ? Number(appState.settings.exchangeRates[currency] || getExchangeRate(currency) || 1) : Number(sanitizedValue);
+      const nextRate = Number.isFinite(parsedValue) ? parsedValue : Number(appState.settings.exchangeRates[currency] || getExchangeRate(currency) || 1);
+      appState.settings.exchangeRates[currency] = nextRate;
+      refs.exchangeRateValueInput.value = String(nextRate);
+      persistState();
+      reconcilePaymentRecords({ preserveHistoricalRate: false });
+      renderAll();
+    });
+  }
+
+  document.querySelectorAll('.exchange-rate-input').forEach((input) => {
+    input.addEventListener('change', (event) => {
+      const currency = event.target.dataset.exchangeCurrency;
+      if (!currency) return;
+      appState.settings.exchangeRates[currency] = Number(event.target.value || 1);
+      persistState();
+      reconcilePaymentRecords({ preserveHistoricalRate: false });
+      renderAll();
+    });
+  });
+
+  if (refs.addMilestoneReminderBtn) {
+    refs.addMilestoneReminderBtn.addEventListener('click', addMilestoneReminder);
+  }
 
   refs.settingsForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -593,6 +653,23 @@ function setCurrentView(viewName) {
   });
 }
 
+function getCurrentMonthKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function syncLiveMonthSelection() {
+  if (!refs.reportMonthInput) {
+    return;
+  }
+
+  const liveMonth = getCurrentMonthKey();
+  if (!refs.reportMonthInput.value || refs.reportMonthInput.value !== liveMonth) {
+    refs.reportMonthInput.value = liveMonth;
+  }
+}
+
 function renderAll() {
   renderHeader();
   populateStudentFormLookups();
@@ -615,6 +692,54 @@ function renderHeader() {
   refs.dashboardQuoteInput.value = appState.settings.quote || DEFAULT_SETTINGS.quote;
 }
 
+function getStudentMonthlyClassCount(studentId, monthKey = getCurrentMonthKey()) {
+  return appState.classes.filter((classItem) => {
+    if (classItem.studentId !== studentId || !classItem.date || !classItem.date.startsWith(monthKey)) {
+      return false;
+    }
+    return classItem.attendance !== 'Cancelled';
+  }).length;
+}
+
+function addMilestoneReminder() {
+  const studentId = refs.milestoneStudentSelect && refs.milestoneStudentSelect.value;
+  const threshold = Number(refs.milestoneThresholdSelect && refs.milestoneThresholdSelect.value);
+  const allowedThresholds = [15, 20, 30];
+
+  if (!studentId || !Number.isFinite(threshold) || !allowedThresholds.includes(threshold) || threshold <= 0) {
+    return;
+  }
+
+  appState.settings.milestoneReminders = Array.isArray(appState.settings.milestoneReminders)
+    ? appState.settings.milestoneReminders
+    : [];
+
+  const alreadyExists = appState.settings.milestoneReminders.some(
+    (entry) => entry.studentId === studentId && Number(entry.threshold) === threshold
+  );
+
+  if (!alreadyExists) {
+    appState.settings.milestoneReminders.push({ studentId, threshold });
+    persistState();
+    renderSettings();
+    renderDashboard();
+  }
+}
+
+function removeMilestoneReminder(studentId, threshold) {
+  if (!studentId || !Number.isFinite(Number(threshold))) {
+    return;
+  }
+
+  appState.settings.milestoneReminders = (appState.settings.milestoneReminders || []).filter(
+    (entry) => !(entry.studentId === studentId && Number(entry.threshold) === Number(threshold))
+  );
+
+  persistState();
+  renderSettings();
+  renderDashboard();
+}
+
 function renderDashboard() {
   const students = appState.students;
   const activeStudents = students.filter((student) => student.status === 'Active').length;
@@ -630,7 +755,6 @@ function renderDashboard() {
   const weekRange = getCurrentWeekRange();
   refs.scheduleWeekLabel.textContent = `Week of ${formatWeekRange(weekRange.monday, weekRange.sunday)}`;
   const weekTotal = appState.payments
-    .filter((payment) => payment.status !== 'Paid' || true)
     .reduce((sum, payment) => {
       const date = payment.classDate ? new Date(`${payment.classDate}T00:00:00`) : null;
       if (date && date >= weekRange.monday && date <= weekRange.sunday) {
@@ -639,11 +763,23 @@ function renderDashboard() {
       return sum;
     }, 0);
 
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const currentMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const monthTotal = appState.payments.reduce((sum, payment) => {
+    const date = payment.classDate ? new Date(`${payment.classDate}T00:00:00`) : null;
+    if (date && date >= currentMonthStart && date <= currentMonthEnd) {
+      return sum + convertCurrencyValue(Number(payment.subtotal || payment.amount || 0), payment.currency, appState.settings.defaultCurrency);
+    }
+    return sum;
+  }, 0);
+
   document.getElementById('weekRangeLabel').textContent = formatWeekRange(weekRange.monday, weekRange.sunday);
 
   const weekTotalLabel = formatCurrencyAmount(weekTotal, appState.settings.defaultCurrency);
+  const monthTotalLabel = formatCurrencyAmount(monthTotal, appState.settings.defaultCurrency);
   const summaryRows = [
     { label: 'Current Week', value: weekTotalLabel },
+    { label: 'Monthly Total', value: monthTotalLabel },
     { label: 'Classes', value: `${appState.classes.filter((item) => isWithinCurrentWeek(item.date)).length}` },
     { label: 'Pending', value: `${pendingPayments}` },
     { label: 'Paid', value: `${paidPayments}` }
@@ -683,6 +819,42 @@ function renderDashboard() {
 
   const todayClasses = appState.classes.filter((item) => item.date === formatDateInput(today));
   document.getElementById('todayClassCount').textContent = `${todayClasses.length} scheduled`;
+  if (refs.monthTotalStatValue) {
+    refs.monthTotalStatValue.textContent = monthTotalLabel;
+  }
+
+  const reminderEntries = (appState.settings.milestoneReminders || [])
+    .map((entry) => {
+      const student = getStudentById(entry.studentId);
+      if (!student) {
+        return null;
+      }
+
+      const count = getStudentMonthlyClassCount(student.id);
+      return { ...entry, student, count };
+    })
+    .filter(Boolean)
+    .filter((entry) => entry.count >= Number(entry.threshold));
+
+  if (refs.dashboardReminderBanner) {
+    if (!reminderEntries.length) {
+      refs.dashboardReminderBanner.innerHTML = '';
+      refs.dashboardReminderBanner.classList.add('hidden');
+    } else {
+      refs.dashboardReminderBanner.classList.remove('hidden');
+      refs.dashboardReminderBanner.innerHTML = reminderEntries
+        .map((entry) => `
+          <div class="dashboard-reminder-item">
+            <span class="dashboard-reminder-icon">📣</span>
+            <div>
+              <strong>${escapeHtml(entry.student.name)}</strong> reached <strong>${entry.threshold}</strong> classes this month
+              <small>(${entry.count} completed)</small>
+            </div>
+          </div>
+        `)
+        .join('');
+    }
+  }
 
   const todayMarkup = todayClasses.length
     ? todayClasses
@@ -1034,8 +1206,25 @@ function openScheduleQuickAction(card, classItem) {
 
   const cardRect = card.getBoundingClientRect();
   const popoverWidth = 260;
-  const left = Math.min(window.innerWidth - popoverWidth - 20, Math.max(20, cardRect.left + 20));
-  const top = Math.max(20, cardRect.top + 12);
+  const popoverHeight = quickAction.offsetHeight || 220;
+  const padding = 20;
+  const maxLeft = window.innerWidth - popoverWidth - padding;
+  const maxTop = window.innerHeight - popoverHeight - padding;
+
+  let left = cardRect.left + 20;
+  let top = cardRect.top + 12;
+
+  if (left + popoverWidth > window.innerWidth - padding) {
+    left = cardRect.right - popoverWidth - 12;
+  }
+
+  if (top + popoverHeight > window.innerHeight - padding) {
+    top = Math.max(padding, maxTop);
+  }
+
+  left = Math.max(padding, Math.min(left, maxLeft));
+  top = Math.max(padding, Math.min(top, maxTop));
+
   quickAction.style.left = `${left}px`;
   quickAction.style.top = `${top}px`;
 }
@@ -1235,6 +1424,12 @@ function renderPaymentBreakdown(filteredPayments) {
 }
 
 function renderClassRecords() {
+  const currentMonthKey = getCurrentMonthKey();
+  const selectedMonth = (refs.recordMonthInput && refs.recordMonthInput.value) || currentMonthKey;
+  if (refs.recordMonthInput) {
+    refs.recordMonthInput.value = selectedMonth;
+  }
+
   const searchText = refs.recordSearch.value.trim().toLowerCase();
   const attendanceFilter = refs.recordStatusFilter.value;
 
@@ -1242,7 +1437,8 @@ function renderClassRecords() {
     const student = getStudentById(item.studentId);
     const matchesText = !searchText || [student?.name || '', item.notes || '', item.classType, item.attendance].join(' ').toLowerCase().includes(searchText);
     const matchesStatus = attendanceFilter === 'all' || item.attendance === attendanceFilter;
-    return matchesText && matchesStatus;
+    const matchesMonth = !item.date || item.date.startsWith(selectedMonth);
+    return matchesText && matchesStatus && matchesMonth;
   });
 
   refs.recordsTableBody.innerHTML = filtered.length
@@ -1284,19 +1480,21 @@ function renderClassRecords() {
 }
 
 function renderReports() {
-  const reportMonth = refs.reportMonthInput.value || `${new Date().getFullYear()}-${padStart(new Date().getMonth() + 1, 2, '0')}`;
-  refs.reportMonthInput.value = reportMonth;
+  const reportMonth = getCurrentMonthKey();
+  syncLiveMonthSelection();
 
   const monthClasses = appState.classes.filter((item) => item.date.startsWith(reportMonth));
   const monthPayments = appState.payments.filter((payment) => (payment.classDate || '').startsWith(reportMonth));
 
   const paidTotal = monthPayments.filter((entry) => entry.status === 'Paid').reduce((sum, entry) => sum + convertCurrencyValue(Number(entry.subtotal || entry.amount || 0), entry.currency, appState.settings.defaultCurrency), 0);
   const pendingTotal = monthPayments.filter((entry) => entry.status === 'Pending').reduce((sum, entry) => sum + convertCurrencyValue(Number(entry.subtotal || entry.amount || 0), entry.currency, appState.settings.defaultCurrency), 0);
+  const totalMonthValue = monthPayments.reduce((sum, entry) => sum + convertCurrencyValue(Number(entry.subtotal || entry.amount || 0), entry.currency, appState.settings.defaultCurrency), 0);
   const cancelledCount = monthClasses.filter((entry) => entry.attendance === 'Cancelled').length;
   const minutes = monthClasses.reduce((sum, entry) => sum + Number(entry.duration || 0), 0);
 
   refs.reportPaidValue.textContent = formatCurrencyAmount(paidTotal, appState.settings.defaultCurrency);
   refs.reportPendingValue.textContent = formatCurrencyAmount(pendingTotal, appState.settings.defaultCurrency);
+  refs.reportTotalValue.textContent = formatCurrencyAmount(totalMonthValue, appState.settings.defaultCurrency);
   refs.reportCancelledValue.textContent = String(cancelledCount);
   refs.reportMinutesValue.textContent = String(minutes);
 
@@ -1350,11 +1548,115 @@ function renderReports() {
     : '<div class="empty-state">No revenue data for this month.</div>';
 }
 
+function updateSelectedExchangeRateInput() {
+  if (!refs.exchangeRateCurrencyInput || !refs.exchangeRateValueInput) {
+    return;
+  }
+
+  const selectedCurrency = String(refs.exchangeRateCurrencyInput.value || appState.settings.defaultCurrency || 'PHP').trim().toUpperCase();
+  const selectedRate = Number(appState.settings.exchangeRates?.[selectedCurrency] ?? getExchangeRate(selectedCurrency) ?? 1);
+  refs.exchangeRateValueInput.value = String(selectedRate);
+}
+
+function renderExchangeRates() {
+  if (!refs.exchangeRateCurrencyInput || !refs.exchangeRateList) {
+    return;
+  }
+
+  const allCurrencies = [...new Set([...CURRENCY_OPTIONS, appState.settings.defaultCurrency, ...appState.students.map((student) => student.currency).filter(Boolean)])].sort();
+  refs.exchangeRateCurrencyInput.innerHTML = allCurrencies
+    .map((currency) => `<option value="${escapeHtml(currency)}">${escapeHtml(currency)} — ${escapeHtml(currency === 'PHP' ? 'Philippine Peso' : currency)}</option>`)
+    .join('');
+
+  const selectedCurrency = refs.exchangeRateCurrencyInput.value || appState.settings.defaultCurrency || 'PHP';
+  refs.exchangeRateCurrencyInput.value = allCurrencies.includes(selectedCurrency) ? selectedCurrency : 'PHP';
+
+  updateSelectedExchangeRateInput();
+
+  refs.exchangeRateList.innerHTML = allCurrencies
+    .map((currency) => {
+      const phpValue = getExchangeRate(currency);
+      return `
+        <div class="exchange-rate-row ${currency === selectedCurrency ? 'selected' : ''}">
+          <span>${currency}</span>
+          <div class="exchange-rate-input-wrap">
+            <input
+              class="exchange-rate-input"
+              type="text"
+              inputmode="decimal"
+              pattern="[0-9]*[.]?[0-9]*"
+              data-exchange-currency="${escapeHtml(currency)}"
+              value="${Number(phpValue).toFixed(2)}"
+              aria-label="${escapeHtml(currency)} exchange rate to PHP"
+            />
+            <strong>PHP</strong>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+
+  document.querySelectorAll('.exchange-rate-input').forEach((input) => {
+    input.addEventListener('change', (event) => {
+      const currency = event.target.dataset.exchangeCurrency;
+      if (!currency) return;
+      const rawValue = String(event.target.value || '').trim();
+      const sanitizedValue = rawValue
+        .replace(/,/g, '.')
+        .replace(/[^0-9.]/g, '')
+        .replace(/\.(?=.*\.)/g, '');
+      const nextRate = Number(sanitizedValue || 1);
+      appState.settings.exchangeRates[currency] = Number.isFinite(nextRate) ? nextRate : 1;
+      persistState();
+      reconcilePaymentRecords({ preserveHistoricalRate: false });
+      renderAll();
+    });
+  });
+}
+
 function renderSettings() {
   const currencyOptions = [...new Set([...CURRENCY_OPTIONS, appState.settings.defaultCurrency, ...appState.students.map((student) => student.currency).filter(Boolean)])];
   refs.defaultCurrencyInput.innerHTML = currencyOptions
     .map((currency) => `<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`)
     .join('');
+
+  if (refs.milestoneStudentSelect) {
+    refs.milestoneStudentSelect.innerHTML = appState.students.length
+      ? appState.students
+          .map((student) => `<option value="${student.id}">${escapeHtml(student.name)}</option>`)
+          .join('')
+      : '<option value="">No students</option>';
+
+    if (appState.students.length && !refs.milestoneStudentSelect.value) {
+      refs.milestoneStudentSelect.value = appState.students[0].id;
+    }
+  }
+
+  if (refs.milestoneReminderList) {
+    refs.milestoneReminderList.innerHTML = (appState.settings.milestoneReminders || []).length
+      ? (appState.settings.milestoneReminders || [])
+          .map((entry) => {
+            const student = getStudentById(entry.studentId);
+            if (!student) {
+              return '';
+            }
+            return `
+              <div class="reminder-chip">
+                <span>${escapeHtml(student.name)} · ${Number(entry.threshold)} classes</span>
+                <button type="button" class="mini-action danger" data-reminder-delete="true" data-reminder-student="${escapeHtml(student.id)}" data-reminder-threshold="${Number(entry.threshold)}">Remove</button>
+              </div>
+            `;
+          })
+          .filter(Boolean)
+          .join('')
+      : '<div class="empty-state small">No milestone reminders set.</div>';
+
+    refs.milestoneReminderList.querySelectorAll('[data-reminder-delete]').forEach((button) => {
+      button.addEventListener('click', () => {
+        removeMilestoneReminder(String(button.dataset.reminderStudent || ''), Number(button.dataset.reminderThreshold || 0));
+      });
+    });
+  }
 
   refs.teacherNameInput.value = appState.settings.teacherName || DEFAULT_SETTINGS.teacherName;
   refs.dashboardTitleInput.value = appState.settings.dashboardTitle || DEFAULT_SETTINGS.dashboardTitle;
@@ -1365,6 +1667,7 @@ function renderSettings() {
   refs.fontInput.value = appState.settings.font || DEFAULT_SETTINGS.font;
   refs.timezoneInput.value = appState.settings.teacherTimezone || DEFAULT_SETTINGS.teacherTimezone;
   refs.reminderSettingsInput.value = appState.settings.reminderSettings || DEFAULT_SETTINGS.reminderSettings;
+  renderExchangeRates();
 }
 
 function populateStaticFilters() {
@@ -1765,8 +2068,8 @@ function getTimePosition(startTime, dayStartMinutes, slotHeight) {
 }
 
 function buildTimeSlots(includeLabels = false) {
-  const startHour = 7;
-  const endHour = 22;
+  const startHour = 6;
+  const endHour = 23;
   const slots = [];
   for (let hour = startHour; hour <= endHour; hour += 1) {
     for (let minute = 0; minute < 60; minute += 30) {
@@ -1820,9 +2123,8 @@ function applyTheme(themeName) {
 }
 
 function applyFont(fontName) {
-  const normalized = fontName === 'sans' ? 'sans' : 'serif';
-  document.body.classList.toggle('font-serif', normalized === 'serif');
-  document.body.classList.toggle('font-sans', normalized === 'sans');
+  const normalized = fontName || 'serif';
+  document.body.setAttribute('data-font', normalized);
 }
 
 init();

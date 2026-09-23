@@ -29,13 +29,13 @@
       </header>
 
       <nav class="main-nav" aria-label="Main navigation">
-        <button class="nav-item active" type="button" data-view="dashboard">Dashboard</button>
-        <button class="nav-item" type="button" data-view="students">Students</button>
-        <button class="nav-item" type="button" data-view="schedule">Weekly Schedule</button>
-        <button class="nav-item" type="button" data-view="payments">Payments</button>
-        <button class="nav-item" type="button" data-view="records">Class Records</button>
-        <button class="nav-item" type="button" data-view="reports">Reports &amp; Analysis</button>
-        <button class="nav-item" type="button" data-view="settings">Settings</button>
+        <button class="nav-item active" type="button" data-view="dashboard"><span class="modern-emoji">📊</span> Dashboard</button>
+        <button class="nav-item" type="button" data-view="students"><span class="modern-emoji">👥</span> Students</button>
+        <button class="nav-item" type="button" data-view="schedule"><span class="modern-emoji">🗓️</span> Weekly Schedule</button>
+        <button class="nav-item" type="button" data-view="payments"><span class="modern-emoji">💰</span> Payments</button>
+        <button class="nav-item" type="button" data-view="records"><span class="modern-emoji">📝</span> Class Records</button>
+        <button class="nav-item" type="button" data-view="reports"><span class="modern-emoji">📈</span> Reports &amp; Analysis</button>
+        <button class="nav-item" type="button" data-view="settings"><span class="modern-emoji">⚙️</span> Settings</button>
       </nav>
 
       <main class="page-content">
@@ -57,22 +57,28 @@
             </div>
           </div>
 
-          <div class="stats-grid four-col" id="dashboardSummaryCards">
+          <div id="dashboardReminderBanner" class="dashboard-reminder-banner hidden" aria-live="polite"></div>
+
+          <div class="stats-grid five-col" id="dashboardSummaryCards">
             <div class="stat-card card">
-              <span class="stat-title">Students</span>
+              <span class="stat-title"><span class="modern-emoji">👥</span> Students</span>
               <strong class="stat-value" id="studentStatCount">0</strong>
             </div>
             <div class="stat-card card">
-              <span class="stat-title">Active</span>
+              <span class="stat-title"><span class="modern-emoji">✅</span> Active</span>
               <strong class="stat-value" id="activeStatCount">0</strong>
             </div>
             <div class="stat-card card">
-              <span class="stat-title">Pending</span>
+              <span class="stat-title"><span class="modern-emoji">⏳</span> Pending</span>
               <strong class="stat-value" id="pendingStatCount">0</strong>
             </div>
             <div class="stat-card card">
-              <span class="stat-title">Paid</span>
+              <span class="stat-title"><span class="modern-emoji">💵</span> Paid</span>
               <strong class="stat-value" id="paidStatCount">0</strong>
+            </div>
+            <div class="stat-card card">
+              <span class="stat-title"><span class="modern-emoji">📅</span> Monthly Total</span>
+              <strong class="stat-value" id="monthTotalStatValue">₱0.00</strong>
             </div>
           </div>
 
@@ -210,6 +216,7 @@
 
           <div class="toolbar card records-toolbar">
             <input id="recordSearch" type="search" placeholder="Filter records" aria-label="Filter record search" />
+            <input id="recordMonthInput" type="month" aria-label="Class records month filter" />
             <select id="recordStatusFilter" aria-label="Class attendance filter">
               <option value="all">All attendance</option>
               <option value="Scheduled">Scheduled</option>
@@ -253,7 +260,7 @@
             <input id="reportMonthInput" type="month" aria-label="Month selector" />
           </div>
 
-          <div class="stats-grid four-col" id="reportSummaryCards">
+          <div class="stats-grid five-col" id="reportSummaryCards">
             <div class="stat-card card">
               <span class="stat-title">Paid</span>
               <strong class="stat-value" id="reportPaidValue">₱0.00</strong>
@@ -261,6 +268,10 @@
             <div class="stat-card card">
               <span class="stat-title">Pending</span>
               <strong class="stat-value" id="reportPendingValue">₱0.00</strong>
+            </div>
+            <div class="stat-card card">
+              <span class="stat-title">Total</span>
+              <strong class="stat-value" id="reportTotalValue">₱0.00</strong>
             </div>
             <div class="stat-card card">
               <span class="stat-title">Cancelled</span>
@@ -311,9 +322,22 @@
                 Quote
                 <textarea id="settingsQuoteInput" rows="3"></textarea>
               </label>
+              <label class="full-span">
+                Monthly milestone reminder
+                <div class="reminder-picker-row">
+                  <select id="milestoneStudentSelect" class="compact-select"></select>
+                  <select id="milestoneThresholdSelect" class="compact-select">
+                    <option value="15">15 classes</option>
+                    <option value="20">20 classes</option>
+                    <option value="30">30 classes</option>
+                  </select>
+                  <button type="button" class="secondary-button" id="addMilestoneReminderBtn">Add reminder</button>
+                </div>
+              </label>
+              <div id="milestoneReminderList" class="full-span reminder-list"></div>
               <label>
                 Default currency
-                <select id="defaultCurrencyInput">
+                <select id="defaultCurrencyInput" class="compact-select">
                   <option value="PHP">PHP</option>
                   <option value="USD">USD</option>
                   <option value="EUR">EUR</option>
@@ -326,20 +350,76 @@
                 <input id="phpRateInput" type="number" step="0.01" min="0" />
               </label>
 
+              <div class="full-span exchange-rate-card card">
+                <div class="exchange-rate-header">
+                  <div>
+                    <h3>PHP exchange rates</h3>
+                    <p>Rates recalculate pending records only. Paid records retain their locked snapshot.</p>
+                  </div>
+                </div>
+                <div class="exchange-rate-controls">
+                  <label>
+                    <span>CURRENCY</span>
+                    <select id="exchangeRateCurrencyInput" class="compact-select"></select>
+                  </label>
+                  <label class="exchange-rate-value-field">
+                    <span>RATE</span>
+                    <input id="exchangeRateValueInput" type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" placeholder="1.00" />
+                  </label>
+                </div>
+                <button type="button" class="primary-button" id="saveExchangeRateBtn">Save rate</button>
+                <div id="exchangeRateList" class="exchange-rate-list"></div>
+              </div>
+
               <label>
                 Theme
-                <select id="themeInput">
+                <select id="themeInput" class="compact-select">
                   <option value="soft">Soft</option>
                   <option value="sage">Sage</option>
                   <option value="lavender">Lavender</option>
                   <option value="midnight">Midnight</option>
+                  <option value="peach">Peach</option>
+                  <option value="mint">Mint</option>
+                  <option value="ocean">Ocean</option>
+                  <option value="rosewood">Rosewood</option>
+                  <option value="sunset">Sunset</option>
+                  <option value="plum">Plum</option>
+                  <option value="sky">Sky</option>
+                  <option value="forest">Forest</option>
+                  <option value="ember">Ember</option>
+                  <option value="lilac">Lilac</option>
+                  <option value="slate">Slate</option>
+                  <option value="golden">Golden</option>
+                  <option value="coral">Coral</option>
+                  <option value="berry">Berry</option>
+                  <option value="aqua">Aqua</option>
+                  <option value="sunrise">Sunrise</option>
+                  <option value="violet">Violet</option>
+                  <option value="cocoa">Cocoa</option>
+                  <option value="onyx">Onyx</option>
                 </select>
               </label>
               <label>
                 Font
-                <select id="fontInput">
+                <select id="fontInput" class="compact-select">
                   <option value="serif">Serif</option>
                   <option value="sans">Sans</option>
+                  <option value="modern">Modern</option>
+                  <option value="mono">Mono</option>
+                  <option value="classic">Classic</option>
+                  <option value="display">Display</option>
+                  <option value="editorial">Editorial</option>
+                  <option value="rounded">Rounded</option>
+                  <option value="slab">Slab</option>
+                  <option value="condensed">Condensed</option>
+                  <option value="elegant">Elegant</option>
+                  <option value="handwriting">Handwriting</option>
+                  <option value="futuristic">Futuristic</option>
+                  <option value="book">Book</option>
+                  <option value="geometric">Geometric</option>
+                  <option value="playfair">Playfair</option>
+                  <option value="inter">Inter</option>
+                  <option value="cursive">Cursive</option>
                 </select>
               </label>
               <label>
@@ -412,7 +492,7 @@
             </label>
             <label>
               Currency
-              <select name="currency"></select>
+              <select name="currency" class="compact-select"></select>
             </label>
             <label>
               Payment Type
