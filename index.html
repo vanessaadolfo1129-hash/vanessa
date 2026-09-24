@@ -11,7 +11,7 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="profile-wrap">
-          <div class="profile-icon" aria-label="Profile">V</div>
+          <div class="profile-icon" id="profileAvatar" aria-label="Profile">V</div>
           <div class="profile-copy">
             <h1 id="welcomeGreeting">Good Evening Vanessa</h1>
             <p id="teacherSubtitle">Vanessa · Private Class Teacher</p>
@@ -20,7 +20,8 @@
 
         <div class="header-meta">
           <div class="meta-block time-block">
-            <span id="currentTime">--:--</span>
+            <span class="clock-label">LIVE</span>
+            <span id="currentTime">--:--:--</span>
           </div>
           <div class="meta-block date-block">
             <span id="currentDate">--</span>
@@ -310,6 +311,18 @@
 
           <form id="settingsForm" class="card settings-card">
             <div class="settings-grid">
+              <label class="full-span profile-upload-field">
+                Profile picture
+                <div class="profile-upload-row">
+                  <div class="profile-preview" id="profileImagePreview" aria-live="polite">
+                    <span>V</span>
+                  </div>
+                  <div class="profile-upload-controls">
+                    <input id="profileImageInput" type="file" accept="image/*" />
+                    <button type="button" class="secondary-button small-button" id="profileImageClearBtn">Remove photo</button>
+                  </div>
+                </div>
+              </label>
               <label>
                 Teacher name
                 <input id="teacherNameInput" type="text" />
@@ -325,12 +338,18 @@
               <label class="full-span">
                 Monthly milestone reminder
                 <div class="reminder-picker-row">
-                  <select id="milestoneStudentSelect" class="compact-select"></select>
-                  <select id="milestoneThresholdSelect" class="compact-select">
-                    <option value="15">15 classes</option>
-                    <option value="20">20 classes</option>
-                    <option value="30">30 classes</option>
-                  </select>
+                  <div class="reminder-choice-group">
+                    <span class="reminder-choice-label">Students</span>
+                    <div id="milestoneStudentCheckboxes" class="reminder-checklist"></div>
+                  </div>
+                  <div class="reminder-choice-group">
+                    <span class="reminder-choice-label">Thresholds</span>
+                    <div id="milestoneThresholdCheckboxes" class="reminder-checklist">
+                      <label class="reminder-choice-option"><input type="checkbox" name="milestoneThresholdCheckbox" value="15" /> 15 classes</label>
+                      <label class="reminder-choice-option"><input type="checkbox" name="milestoneThresholdCheckbox" value="20" /> 20 classes</label>
+                      <label class="reminder-choice-option"><input type="checkbox" name="milestoneThresholdCheckbox" value="30" /> 30 classes</label>
+                    </div>
+                  </div>
                   <button type="button" class="secondary-button" id="addMilestoneReminderBtn">Add reminder</button>
                 </div>
               </label>
@@ -420,6 +439,12 @@
                   <option value="playfair">Playfair</option>
                   <option value="inter">Inter</option>
                   <option value="cursive">Cursive</option>
+                  <option value="lora">Lora</option>
+                  <option value="poppins">Poppins</option>
+                  <option value="montserrat">Montserrat</option>
+                  <option value="quicksand">Quicksand</option>
+                  <option value="raleway">Raleway</option>
+                  <option value="nunito">Nunito</option>
                 </select>
               </label>
               <label>

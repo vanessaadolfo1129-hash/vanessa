@@ -55,6 +55,30 @@ const COUNTRY_TIMEZONE_MAP = {
 
 const COUNTRY_OPTIONS = Object.keys(COUNTRY_TIMEZONE_MAP).sort();
 const CURRENCY_OPTIONS = ['PHP', 'USD', 'EUR', 'SGD', 'AUD', 'GBP', 'JPY', 'CAD', 'CHF', 'HKD', 'NZD', 'CNY', 'KRW', 'AED', 'THB', 'IDR', 'MYR', 'INR', 'SEK', 'NOK', 'DKK', 'SAR'];
+const CURRENCY_LABELS = {
+  PHP: 'Philippine Peso',
+  USD: 'US Dollar',
+  EUR: 'Euro',
+  SGD: 'Singapore Dollar',
+  AUD: 'Australian Dollar',
+  GBP: 'British Pound Sterling',
+  JPY: 'Japanese Yen',
+  CAD: 'Canadian Dollar',
+  CHF: 'Swiss Franc',
+  HKD: 'Hong Kong Dollar',
+  NZD: 'New Zealand Dollar',
+  CNY: 'Chinese Yuan',
+  KRW: 'South Korean Won',
+  AED: 'United Arab Emirates Dirham',
+  THB: 'Thai Baht',
+  IDR: 'Indonesian Rupiah',
+  MYR: 'Malaysian Ringgit',
+  INR: 'Indian Rupee',
+  SEK: 'Swedish Krona',
+  NOK: 'Norwegian Krone',
+  DKK: 'Danish Krone',
+  SAR: 'Saudi Riyal'
+};
 const DEFAULT_SETTINGS = {
   teacherName: 'Vanessa',
   dashboardTitle: "Vanessa's Dashboard",
@@ -71,6 +95,7 @@ const DEFAULT_SETTINGS = {
   },
   theme: 'soft',
   font: 'serif',
+  profileImage: '',
   teacherTimezone: 'Asia/Manila',
   reminderSettings: 'Send a gentle reminder 24 hours before each class.'
 };
@@ -88,6 +113,10 @@ const refs = {
   views: document.querySelectorAll('.view'),
   currentTime: document.getElementById('currentTime'),
   currentDate: document.getElementById('currentDate'),
+  profileAvatar: document.getElementById('profileAvatar'),
+  profileImageInput: document.getElementById('profileImageInput'),
+  profileImageClearBtn: document.getElementById('profileImageClearBtn'),
+  profileImagePreview: document.getElementById('profileImagePreview'),
   welcomeGreeting: document.getElementById('welcomeGreeting'),
   teacherSubtitle: document.getElementById('teacherSubtitle'),
   dashboardTitle: document.getElementById('dashboardTitle'),
@@ -583,6 +612,22 @@ function bindEvents() {
     refs.addMilestoneReminderBtn.addEventListener('click', addMilestoneReminder);
   }
 
+  if (refs.profileImageInput) {
+    refs.profileImageInput.addEventListener('change', handleProfileImageUpload);
+  }
+
+  if (refs.profileImageClearBtn) {
+    refs.profileImageClearBtn.addEventListener('click', () => {
+      appState.settings.profileImage = '';
+      persistState();
+      renderHeader();
+      renderSettings();
+      if (refs.profileImageInput) {
+        refs.profileImageInput.value = '';
+      }
+    });
+  }
+
   refs.settingsForm.addEventListener('submit', (event) => {
     event.preventDefault();
     appState.settings.teacherName = refs.teacherNameInput.value.trim() || DEFAULT_SETTINGS.teacherName;
@@ -690,6 +735,7 @@ function renderHeader() {
   refs.teacherSubtitle.textContent = `${teacherName} · Private Class Teacher`;
   refs.dashboardTitle.textContent = appState.settings.dashboardTitle || "Vanessa's Dashboard";
   refs.dashboardQuoteInput.value = appState.settings.quote || DEFAULT_SETTINGS.quote;
+  applyProfileImage();
 }
 
 function getStudentMonthlyClassCount(studentId, monthKey = getCurrentMonthKey()) {
@@ -702,11 +748,14 @@ function getStudentMonthlyClassCount(studentId, monthKey = getCurrentMonthKey())
 }
 
 function addMilestoneReminder() {
-  const studentId = refs.milestoneStudentSelect && refs.milestoneStudentSelect.value;
-  const threshold = Number(refs.milestoneThresholdSelect && refs.milestoneThresholdSelect.value);
-  const allowedThresholds = [15, 20, 30];
+  const selectedStudents = Array.from(document.querySelectorAll('input[name="milestoneStudentCheckbox"]:checked'))
+    .map((input) => String(input.value || '').trim())
+    .filter(Boolean);
+  const selectedThresholds = Array.from(document.querySelectorAll('input[name="milestoneThresholdCheckbox"]:checked'))
+    .map((input) => Number(input.value))
+    .filter((value) => Number.isFinite(value) && value > 0);
 
-  if (!studentId || !Number.isFinite(threshold) || !allowedThresholds.includes(threshold) || threshold <= 0) {
+  if (!selectedStudents.length || !selectedThresholds.length) {
     return;
   }
 
@@ -714,16 +763,21 @@ function addMilestoneReminder() {
     ? appState.settings.milestoneReminders
     : [];
 
-  const alreadyExists = appState.settings.milestoneReminders.some(
-    (entry) => entry.studentId === studentId && Number(entry.threshold) === threshold
-  );
+  const existing = new Set(appState.settings.milestoneReminders.map((entry) => `${entry.studentId}:${Number(entry.threshold)}`));
 
-  if (!alreadyExists) {
-    appState.settings.milestoneReminders.push({ studentId, threshold });
-    persistState();
-    renderSettings();
-    renderDashboard();
-  }
+  selectedStudents.forEach((studentId) => {
+    selectedThresholds.forEach((threshold) => {
+      const key = `${studentId}:${threshold}`;
+      if (!existing.has(key)) {
+        appState.settings.milestoneReminders.push({ studentId, threshold });
+        existing.add(key);
+      }
+    });
+  });
+
+  persistState();
+  renderSettings();
+  renderDashboard();
 }
 
 function removeMilestoneReminder(studentId, threshold) {
@@ -1558,6 +1612,10 @@ function updateSelectedExchangeRateInput() {
   refs.exchangeRateValueInput.value = String(selectedRate);
 }
 
+function getCurrencyLabel(currency) {
+  return CURRENCY_LABELS[currency] || currency;
+}
+
 function renderExchangeRates() {
   if (!refs.exchangeRateCurrencyInput || !refs.exchangeRateList) {
     return;
@@ -1565,7 +1623,7 @@ function renderExchangeRates() {
 
   const allCurrencies = [...new Set([...CURRENCY_OPTIONS, appState.settings.defaultCurrency, ...appState.students.map((student) => student.currency).filter(Boolean)])].sort();
   refs.exchangeRateCurrencyInput.innerHTML = allCurrencies
-    .map((currency) => `<option value="${escapeHtml(currency)}">${escapeHtml(currency)} — ${escapeHtml(currency === 'PHP' ? 'Philippine Peso' : currency)}</option>`)
+    .map((currency) => `<option value="${escapeHtml(currency)}">${escapeHtml(currency)} — ${escapeHtml(getCurrencyLabel(currency))}</option>`)
     .join('');
 
   const selectedCurrency = refs.exchangeRateCurrencyInput.value || appState.settings.defaultCurrency || 'PHP';
@@ -1620,16 +1678,18 @@ function renderSettings() {
     .map((currency) => `<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`)
     .join('');
 
-  if (refs.milestoneStudentSelect) {
-    refs.milestoneStudentSelect.innerHTML = appState.students.length
+  const studentCheckboxes = document.getElementById('milestoneStudentCheckboxes');
+  if (studentCheckboxes) {
+    studentCheckboxes.innerHTML = appState.students.length
       ? appState.students
-          .map((student) => `<option value="${student.id}">${escapeHtml(student.name)}</option>`)
+          .map((student) => `
+            <label class="reminder-choice-option">
+              <input type="checkbox" name="milestoneStudentCheckbox" value="${escapeHtml(student.id)}" />
+              <span>${escapeHtml(student.name)}</span>
+            </label>
+          `)
           .join('')
-      : '<option value="">No students</option>';
-
-    if (appState.students.length && !refs.milestoneStudentSelect.value) {
-      refs.milestoneStudentSelect.value = appState.students[0].id;
-    }
+      : '<div class="empty-state small">No students available.</div>';
   }
 
   if (refs.milestoneReminderList) {
@@ -1667,6 +1727,7 @@ function renderSettings() {
   refs.fontInput.value = appState.settings.font || DEFAULT_SETTINGS.font;
   refs.timezoneInput.value = appState.settings.teacherTimezone || DEFAULT_SETTINGS.teacherTimezone;
   refs.reminderSettingsInput.value = appState.settings.reminderSettings || DEFAULT_SETTINGS.reminderSettings;
+  applyProfileImage();
   renderExchangeRates();
 }
 
@@ -1823,6 +1884,7 @@ function deleteClass(classId) {
 
   appState.classes = appState.classes.filter((entry) => entry.id !== classId);
   appState.payments = appState.payments.filter((entry) => entry.classId !== classId);
+  reconcilePaymentRecords({ preserveHistoricalRate: false });
   persistState();
   renderAll();
 }
@@ -1998,7 +2060,12 @@ function getGreeting(date) {
 
 function updateHeaderTime() {
   const now = new Date();
-  refs.currentTime.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  refs.currentTime.textContent = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
   refs.currentDate.textContent = now.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -2125,6 +2192,58 @@ function applyTheme(themeName) {
 function applyFont(fontName) {
   const normalized = fontName || 'serif';
   document.body.setAttribute('data-font', normalized);
+}
+
+function handleProfileImageUpload(event) {
+  const input = event.target;
+  const [file] = input.files || [];
+
+  if (!file || !file.type || !file.type.startsWith('image/')) {
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    appState.settings.profileImage = String(reader.result || '');
+    persistState();
+    renderHeader();
+    renderSettings();
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function applyProfileImage() {
+  const avatar = refs.profileAvatar;
+  const preview = refs.profileImagePreview;
+  const name = (appState.settings.teacherName || DEFAULT_SETTINGS.teacherName || 'V').trim();
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'V';
+
+  if (avatar) {
+    avatar.textContent = initials;
+    if (appState.settings.profileImage) {
+      avatar.style.backgroundImage = `url("${appState.settings.profileImage}")`;
+      avatar.style.backgroundSize = 'cover';
+      avatar.style.backgroundPosition = 'center';
+      avatar.style.color = 'transparent';
+      avatar.classList.add('has-image');
+    } else {
+      avatar.style.backgroundImage = 'none';
+      avatar.style.color = '';
+      avatar.classList.remove('has-image');
+    }
+  }
+
+  if (preview) {
+    preview.innerHTML = appState.settings.profileImage
+      ? `<img src="${appState.settings.profileImage}" alt="Teacher profile preview" />`
+      : `<span>${escapeHtml(initials)}</span>`;
+  }
 }
 
 init();

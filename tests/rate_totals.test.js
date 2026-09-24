@@ -122,13 +122,27 @@ if (vm.runInContext('typeof updateSelectedExchangeRateInput', context) !== 'func
   throw new Error('Manual exchange rate sync helper is missing');
 }
 
+if (!Object.prototype.hasOwnProperty.call(vm.runInContext('DEFAULT_SETTINGS', context), 'profileImage')) {
+  throw new Error('Default profile image state should be initialized');
+}
+
+if (vm.runInContext('typeof applyProfileImage', context) !== 'function') {
+  throw new Error('Profile image helper should be available');
+}
+
 vm.runInContext(`
   refs.exchangeRateCurrencyInput.value = 'AED';
   appState.settings.exchangeRates.AED = 12.5;
+  renderExchangeRates();
   updateSelectedExchangeRateInput();
 `, context);
 if (String(vm.runInContext('refs.exchangeRateValueInput.value', context)) !== '12.5') {
   throw new Error('Selecting a currency should update the manual rate field to that currency value');
+}
+
+const rateOptionsHtml = String(vm.runInContext('refs.exchangeRateCurrencyInput.innerHTML', context));
+if (!/United Arab Emirates Dirham/.test(rateOptionsHtml) || /AED — AED/.test(rateOptionsHtml)) {
+  throw new Error('Manual currency selector should show a readable currency label instead of repeating the code');
 }
 
 vm.runInContext(`
@@ -141,6 +155,20 @@ vm.runInContext(`
 const reminderHtml = String(vm.runInContext('refs.dashboardReminderBanner.innerHTML', context));
 if (!/Alice/.test(reminderHtml) || !/2/.test(reminderHtml)) {
   throw new Error('Dashboard reminder banner should appear for milestone-reached students');
+}
+
+vm.runInContext(`
+  appState.classes = [{ id: 'delete-test-class', studentId: 's1', date: '${currentDateKey}', startTime: '09:00', duration: 60, attendance: 'Scheduled', classType: 'Regular' }];
+  appState.payments = [{ id: 'delete-test-payment', classId: 'delete-test-class', studentId: 's1', studentName: 'Alice', currency: 'PHP', subtotal: 300, status: 'Pending', classDate: '${currentDateKey}' }];
+  deleteClass('delete-test-class');
+`, context);
+
+if (vm.runInContext('appState.classes.some((item) => item.id === "delete-test-class")', context)) {
+  throw new Error('Deleting a class should remove it from the schedule data and all derived tabs');
+}
+
+if (vm.runInContext('appState.payments.some((entry) => entry.classId === "delete-test-class")', context)) {
+  throw new Error('Deleting a class should also remove its associated payment record');
 }
 
 console.log('rate totals test passed');
